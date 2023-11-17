@@ -5,6 +5,8 @@ import seaborn as sns
 import pickle as pkl
 import argparse
 
+ 
+
 from palettable.cartocolors.diverging import Geyser_7
 from palettable.colorbrewer.diverging import RdBu_3
 
@@ -19,10 +21,12 @@ hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
 def get_grid(files):
     grid = np.zeros((len(hmm_list),len(hMM_list)))
     for file_name in files:
+      
         hMM, hmm = file_name.split("hMM")[-1].split("-")[0], file_name.split("hmm")[-1].split("-")[0]
+        hMM, hmm = hMM.replace(".csv",""), hmm.replace(".csv","")
         hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
-        print("hMM: {}, hmm: {}".format(hMM, hmm))
-        
+        # print("hMM: {}, hmm: {}".format(hMM, hmm))
+        if hMM == str("1.0"): print(hmm)
         # Sanity checks
         N_extracted = int(file_name.split("N")[-1].split("-")[0])
         assert N == N_extracted # ensure that these files are of the N we want
@@ -34,7 +38,7 @@ def get_grid(files):
         assert YM == YM_extracted # YM is same
         d_extracted = float(file_name.split("d")[-1].split("-")[0])
         assert d == d_extracted # d is same
-        
+    
         
         df = pd.read_csv(file_name)
         
@@ -51,12 +55,18 @@ def get_grid(files):
     return grid
 
 def generate_heatmap(file_path, reco_type):
-    print("file path", file_path)
     all_files = os.listdir(file_path)
     csv_files = [os.path.join(file_path,file_name) for file_name in all_files if "netmeta" not in file_name and ".csv" in file_name]
     grid = get_grid(csv_files)
+    print(len(csv_files))
     if reco_type == "before":
+        with open('dpah_before.npy', 'wb') as f:
+                 np.save(f, grid)
         heatmap = grid.T  - fm
+    elif reco_type == "after":
+        with open('dpah_before.npy', 'rb') as f:
+             before_fm_hat = np.load(f)
+        heatmap = grid.T - before_fm_hat.T
 
     hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
     hMM_ticks = [np.round(hMM,2) for hMM in hMM_list]

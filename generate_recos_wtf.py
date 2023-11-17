@@ -46,40 +46,56 @@ def save_metadata(g, hMM, hmm, model):
     
     fn = os.path.join(folder_path,'{}.gpickle'.format(filename))
     io.save_gpickle(g, fn)
-    df = get_node_metadata_as_dataframe(g)
+
+    ## [Personal] Specifying jobs
+    njobs = 24
+    df = get_node_metadata_as_dataframe(g, njobs=njobs)
     csv_fn = os.path.join(folder_path,'{}.csv'.format(filename))
     io.save_csv(df, csv_fn)
     
     print("Saving graph and csv file at, ", filename)
 
 
-def get_top_recos(A, p=0.85, top=10, num_cores=40):
+def get_top_recos(A, p=0.85, top=10, num_cores=36):
     cot_per_node = get_circle_of_trust_per_node(A, p, top, num_cores)
     results = Parallel(n_jobs=num_cores)(delayed(_salsa_top1)(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node))
     return results
     
 def _salsa_top1(node_index, cot, A, top=10):
-    BG = nx.Graph()
-    BG.add_nodes_from(['h{}'.format(vi) for vi in cot], bipartite=0)  # hubs
-    edges = [('h{}'.format(vi), int(vj)) for vi in cot for vj in np.argwhere(A[vi,:] != 0 )[:,1]]
-    BG.add_nodes_from(set([e[1] for e in edges]), bipartite=1)  # authorities
-    BG.add_edges_from(edges)
-    centrality = Counter({n: c for n, c in nx.eigenvector_centrality_numpy(BG).items() if type(n) == int
-                                                                                       and n not in cot
-                                                                                       and n != node_index
-                                                                                       and n not in np.argwhere(A[node_index,:] != 0 )[:,1] })
-    del(BG)
-    #time.sleep(0.01)
-    return [n for n, pev in centrality.most_common(1)][0]
+    try:
+        BG = nx.Graph()
+        BG.add_nodes_from(['h{}'.format(vi) for vi in cot], bipartite=0)  # hubs
+        edges = [('h{}'.format(vi), int(vj)) for vi in cot for vj in np.argwhere(A[vi,:] != 0 )[:,1]]
+        BG.add_nodes_from(set([e[1] for e in edges]), bipartite=1)  # authorities
+        BG.add_edges_from(edges)
+        centrality = Counter({n: c for n, c in nx.eigenvector_centrality_numpy(BG).items() if type(n) == int
+                                                                                        and n not in cot
+                                                                                        and n != node_index
+                                                                                        and n not in np.argwhere(A[node_index,:] != 0 )[:,1] })
+        del(BG)
+        #time.sleep(0.01)
+        return [n for n, pev in centrality.most_common(1)][0]
+    except Exception as e:
+        return []
 
 def run(hMM, hmm):
+    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(MODEL)
     
-    graph_file = [file for file in graph_files if str(hMM) in file and str(hmm) in file][0]
-    hMM, hmm = graph_file.split("hMM")[-1].split("-")[0], graph_file.split("hmm")[-1].split("-")[0]
+
+
+    new_filename = get_filename(MODEL, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
+    new_path = os.path.join(folder_path, new_filename) 
+    print(new_path)
+    if os.path.exists(new_path):
+        print("File exists for configuration hMM:{}, hmm:{}".format(hMM,hmm))
+        return 
     print("hMM: {}, hmm: {}".format(hMM, hmm))
 
     # read the base graph from DPAH folder
-    g = nx.read_gpickle(os.path.join(DPAH_path,graph_file))
+    old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
+    g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
+    
+
     for t in range(EPOCHS):
         print("Generating recommendations for epoch step:", t)
         nodes = g.nodes()
@@ -105,11 +121,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     start_time = time.time()
-    run(args.hMM, args.hmm)
-    # import numpy as np
-    # for hMM in np.arange(0.0, 1.1, 0.1):
-    #     for hmm in np.arange(0.0,1.1,0.1):
-    #         hMM, hmm = np.round(hMM, 2), np.round(hmm, 2)
-    #         run(args.model, args.N, args.fm, args.d, args.ploM, args.plom, hMM, hmm, args.epoch, args.output)
+    # run(args.hMM, args.hmm)
+    import numpy as np
+    for hMM in np.arange(0.0, 1.1, 0.1):
+        for hmm in np.arange(0.0,1.1,0.1):
+            hMM, hmm = np.round(hMM, 2), np.round(hmm, 2)
+            run(hMM, hmm)
+
     print("--- %s seconds ---" % (time.time() - start_time))
         
