@@ -25,8 +25,8 @@ def get_grid(files):
         hMM, hmm = file_name.split("hMM")[-1].split("-")[0], file_name.split("hmm")[-1].split("-")[0]
         hMM, hmm = hMM.replace(".csv",""), hmm.replace(".csv","")
         hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
-        # print("hMM: {}, hmm: {}".format(hMM, hmm))
-        if hMM == str("1.0"): print(hmm)
+        print("hMM: {}, hmm: {}".format(hMM, hmm))
+     
         # Sanity checks
         N_extracted = int(file_name.split("N")[-1].split("-")[0])
         assert N == N_extracted # ensure that these files are of the N we want
@@ -66,6 +66,9 @@ def generate_heatmap(file_path, reco_type):
     elif reco_type == "after":
         with open('dpah_before.npy', 'rb') as f:
              before_fm_hat = np.load(f)
+   
+
+   
         heatmap = grid.T - before_fm_hat.T
 
     hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
@@ -75,7 +78,7 @@ def generate_heatmap(file_path, reco_type):
     ax.set_xlabel("Homophily for Minority Class")
     ax.set_ylabel("Homophily for Majority Class")
     fig = ax.get_figure()
-    fig.savefig("out_{}.png".format(reco_type))
+    fig.savefig("out_custom_n2v_{}.png".format(reco_type))
 
 
 
