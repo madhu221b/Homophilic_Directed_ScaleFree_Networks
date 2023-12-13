@@ -4,11 +4,7 @@ import numpy as np
 import seaborn as sns
 import pickle as pkl
 import argparse
-
- 
-
-from palettable.cartocolors.diverging import Geyser_7
-from palettable.colorbrewer.diverging import RdBu_3
+import matplotlib.pyplot as plt
 
 fm = 0.3
 N = 1000
@@ -17,6 +13,9 @@ d = 0.03
 topk = 10 # to extract top k 
 hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
 
+plot_directory = "../plots/heatmap/visibility"
+if not os.path.exists(plot_directory):
+    os.makedirs(plot_directory)
 
 def get_grid(files):
     grid = np.zeros((len(hmm_list),len(hMM_list)))
@@ -52,9 +51,10 @@ def get_grid(files):
         fm_hat = topnodes.minority.sum()/topnodes.shape[0]
         
         grid[hmm_idx][hMM_idx] = fm_hat
+       #  grid[hmm_idx][hMM_idx] = 1
     return grid
 
-def generate_heatmap(file_path, reco_type):
+def generate_heatmap(file_path,model, reco_type):
     all_files = os.listdir(file_path)
     csv_files = [os.path.join(file_path,file_name) for file_name in all_files if "netmeta" not in file_name and ".csv" in file_name]
     grid = get_grid(csv_files)
@@ -64,29 +64,40 @@ def generate_heatmap(file_path, reco_type):
                  np.save(f, grid)
         heatmap = grid.T  - fm
     elif reco_type == "after":
+        print("Going here")
         with open('dpah_before.npy', 'rb') as f:
              before_fm_hat = np.load(f)
-   
 
-   
         heatmap = grid.T - before_fm_hat.T
-
     hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
     hMM_ticks = [np.round(hMM,2) for hMM in hMM_list]
-    ax = sns.heatmap(heatmap, cmap=Geyser_7.mpl_colormap,xticklabels=hmm_ticks,yticklabels=hMM_ticks)
+    if reco_type == "before": vmax,vmin = 1, -1
+    else: vmax,vmin = 0.32, -0.32
+    ax = sns.heatmap(heatmap, cmap=plt.cm.coolwarm,xticklabels=hmm_ticks,yticklabels=hMM_ticks,vmax=vmax,vmin=vmin)
+    # ax = sns.heatmap(heatmap, cmap=plt.cm.coolwarm,xticklabels=hmm_ticks,yticklabels=hMM_ticks)
     ax.invert_yaxis()
+    cbar = ax.collections[0].colorbar
+    print(vmax,vmin)
+    cbar.set_ticks([vmin, float((vmax+vmin)/2), vmax])
+    if reco_type == "before":
+      cbar.set_ticklabels(["{} : Minorities \n Underrepresented".format(vmin),0,"{} : Minorities \n  Overrepresented".format(vmax)],update_ticks=True)
+    else:
+        cbar.set_ticklabels(["{} : Negative \n Variation".format(vmin),0,"{} : Positive \n Variation".format(vmax)],update_ticks=True)
+
     ax.set_xlabel("Homophily for Minority Class")
     ax.set_ylabel("Homophily for Majority Class")
+
     fig = ax.get_figure()
-    fig.savefig("out_custom_n2v_{}.png".format(reco_type))
+    fig.savefig(plot_directory+"/out_{}_{}.png".format(model,reco_type),bbox_inches='tight')
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", help="path/generate heat map on which model", type=str, default='.')
+    parser.add_argument("--model", help="model", type=str, default='.')
     parser.add_argument("--reco", help="before/after recommendation", type=str, default='')
     args = parser.parse_args()
-    generate_heatmap(args.path, args.reco)
+    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(args.model)
+    generate_heatmap(path,args.model, args.reco)
     args = parser.parse_args()
     

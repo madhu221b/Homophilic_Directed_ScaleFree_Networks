@@ -13,7 +13,7 @@ from org.gesis.lib.io import create_subfolders
 from org.gesis.lib.graph import get_node_metadata_as_dataframe
 from org.gesis.lib.io import save_csv
 from org.gesis.lib.graph import get_circle_of_trust_per_node
-
+from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model, get_top_recos
 from joblib import delayed
 from joblib import Parallel
 from collections import Counter
@@ -34,35 +34,8 @@ N = 1000
 YM, Ym = 2.5, 2.5
 d = 0.03
 
-# Hyperparameter for node2vec
-DIM = 64
-WALK_LEN = 10
-NUM_WALKS = 200
-
-def set_seed(seed):
-    np.random.seed(seed)
-    random.seed(seed)
-
-def recommender_model(G, num_cores=8):
-    fw_model = FairWalk(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores)
-    model = fw_model.fit() 
-    return model
-
-def get_top_recos(G, model):
-    results = []
-    for ns in G.nodes():
-        nt = int(model.wv.most_similar(str(ns))[0][0]) # generate top 1 recommendation
-        results.append((ns,nt))
-    return results
    
-
-def rewiring_list(G, node, number_of_rewiring):
-        nodes_to_be_unfollowed = []
-        node_neighbors = np.array(list(G.successors(node)))
-        nodes_to_be_unfollowed = np.random.permutation(node_neighbors)[:number_of_rewiring]
-        return list(map(lambda x: tuple([node, x]), nodes_to_be_unfollowed))
-
-def make_one_timestep(G, seed):
+def make_one_timestep(g, seed):
         '''Defines each timestep of the simulation:
             0. each node makes experiments
             1. loops in the permutation of nodes choosing the INFLUENCED node u (u->v means u follows v, v can influence u)
@@ -75,21 +48,27 @@ def make_one_timestep(G, seed):
         # set seed
         set_seed(seed)
 
-        n2v_model = recommender_model(G)
-        recos = get_top_recos(G, n2v_model) 
-
+        print("Generating Node Embeddings")
+        fw_model, fw_embeds = recommender_model(g,model="fw")
+        print("Getting Link Recommendations from Fairwalk Model")
+        u = g.nodes()
+        recos = get_top_recos(g,fw_embeds, u) 
+        new_edges = 0
         for i,(u,v) in enumerate(recos):
             seed += i
             set_seed(seed)
-            edges_to_be_removed = rewiring_list(G, u, 1)
-            G.remove_edges_from(edges_to_be_removed) # deleting previously existing links
-            G.add_edge(u,v)
+            if not g.has_edge(u,v):
+               edges_to_be_removed = rewiring_list(g, u, 1)
+               g.remove_edges_from(edges_to_be_removed) # deleting previously existing links
+               new_edges += 1
+               g.add_edge(u,v)
             seed += 1
-        return G
+        print("No of new edges added: ", new_edges)
+        return g
 
 
 def run(hMM, hmm):
-        
+    try:  
         # Setting seed
         np.random.seed(MAIN_SEED)
         random.seed(MAIN_SEED)
@@ -117,6 +96,8 @@ def run(hMM, hmm):
         
             if time == EPOCHS-1:
                 save_metadata(g, hMM, hmm, MODEL)
+    except Exception as e:
+       print("Error in run function:", e)
 
 def get_filename(model,N,fm,d,YM,Ym,hMM,hmm):
     return "{}-N{}-fm{}{}{}{}{}{}".format(model, N, 

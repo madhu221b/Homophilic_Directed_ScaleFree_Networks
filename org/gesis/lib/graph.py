@@ -94,10 +94,12 @@ def get_node_metadata_as_dataframe(g, njobs=1):
     cols = ['node','minority','indegree','outdegree','pagerank','wtf']
     df = pd.DataFrame(columns=cols)
     nodes = g.nodes()
-    minority = [g.node[n][g.graph['label']] for n in nodes]
+    # minority = [g.node[n][g.graph['label']] for n in nodes]
+    minority = [g.nodes[n][g.graph['label']] for n in nodes]
     indegree = [g.in_degree(n) for n in nodes]
     outdegree = [g.out_degree(n) for n in nodes]
     A = nx.to_scipy_sparse_matrix(g,nodes)
+    # A = nx.attr_sparse_matrix(g)[0]
     pagerank = pagerank_power(A, p=0.85, tol=1e-6)
     wtf = who_to_follow_rank(A, njobs)
     

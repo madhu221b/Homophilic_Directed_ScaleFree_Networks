@@ -7,10 +7,6 @@ import argparse
 import networkx as nx
 
 import matplotlib.pyplot as plt
-cmap = plt.cm.coolwarm
-
-from palettable.cartocolors.diverging import Geyser_7
-from palettable.colorbrewer.diverging import RdBu_3
 
 fm = 0.3
 N = 1000
@@ -32,17 +28,7 @@ def get_grid(files, model,centrality):
         hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
         print("hMM: {}, hmm: {}".format(hMM, hmm))
      
-        # Sanity checks
-        N_extracted = int(file_name.split("N")[-1].split("-")[0])
-        assert N == N_extracted # ensure that these files are of the N we want
-        fm_extracted = float(file_name.split("fm")[-1].split("-")[0])
-        assert fm == fm_extracted # ensure that these files are of the fm we want
-        Ym_extracted = float(file_name.split("plom")[-1].split("-")[0])
-        assert Ym == Ym_extracted # ym is same
-        YM_extracted = float(file_name.split("ploM")[-1].split("-")[0])
-        assert YM == YM_extracted # YM is same
-        d_extracted = float(file_name.split("d")[-1].split("-")[0])
-        assert d == d_extracted # d is same
+
     
         
         g = nx.read_gpickle(file_name)
@@ -51,7 +37,7 @@ def get_grid(files, model,centrality):
         dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
         if not os.path.exists(dict_file_name):
             if centrality == "betweenness":
-                centrality_dict = nx.betweenness_centrality(g)
+                centrality_dict = nx.betweenness_centrality(g, normalized=True)
             elif centrality == "closeness":
                 centrality_dict = nx.closeness_centrality(g)
             else:
@@ -84,8 +70,8 @@ def generate_heatmap(file_path, model, reco_type, centrality):
         with open('dpah_before_{}.npy'.format(centrality), 'rb') as f:
              before_fm_hat = np.load(f)
    
-        heatmap = grid.T - before_fm_hat.T
-        # heatmap = grid.T
+        # heatmap = grid.T - before_fm_hat.T
+        heatmap = grid.T
 
     hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
     hMM_ticks = [np.round(hMM,2) for hMM in hMM_list]
