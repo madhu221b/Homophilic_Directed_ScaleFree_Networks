@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from fairwalk.fairwalk  import FairWalk
 from node2vec import Node2Vec
-
+from node2vec_code.node2vec.node2vec import Node2Vec as custom_N2V
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
 WALK_LEN = 10
@@ -21,9 +21,15 @@ def rewiring_list(G, node, number_of_rewiring):
         return list(map(lambda x: tuple([node, x]), nodes_to_be_unfollowed))
 
 
-def recommender_model(G,model="n2v",num_cores=8):
+def recommender_model(G,model="n2v",q=1,num_cores=8):
     if model == "n2v":
-       node2vec = Node2Vec(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores)
+       print("Using q value: ",q)
+       node2vec = Node2Vec(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,q=q)
+       model = node2vec.fit() 
+       emb_df = (pd.DataFrame([model.wv.get_vector(str(n)) for n in G.nodes()], index = G.nodes))
+    elif model == "custom_n2v":
+       print("Going in Custom N2V")
+       node2vec = custom_N2V(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores)
        model = node2vec.fit() 
        emb_df = (pd.DataFrame([model.wv.get_vector(str(n)) for n in G.nodes()], index = G.nodes))
     elif model == "fw":

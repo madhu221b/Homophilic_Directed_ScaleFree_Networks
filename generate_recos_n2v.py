@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import networkx as nx
-from node2vec import Node2Vec
 from tqdm import tqdm
 import random
 import time
@@ -35,8 +34,7 @@ YM, Ym = 2.5, 2.5
 d = 0.03
 
 
-
-def make_one_timestep(g, seed):
+def make_one_timestep(g, seed, q=1):
         '''Defines each timestep of the simulation:
             0. each node makes experiments
             1. loops in the permutation of nodes choosing the INFLUENCED node u (u->v means u follows v, v can influence u)
@@ -50,7 +48,7 @@ def make_one_timestep(g, seed):
         set_seed(seed)
 
         print("Generating Node Embeddings")
-        n2v_model, n2v_embeds = recommender_model(g,model="n2v")
+        n2v_model, n2v_embeds = recommender_model(g,model="n2v",q=q)
         print("Getting Link Recommendations from N2V Model")
         u = g.nodes()
         recos = get_top_recos(g,n2v_embeds, u) 
@@ -68,7 +66,7 @@ def make_one_timestep(g, seed):
         return g
 
 
-def run(hMM, hmm):
+def run(hMM, hmm,q=1):
     try:
         # Setting seed
         np.random.seed(MAIN_SEED)
@@ -89,7 +87,7 @@ def run(hMM, hmm):
         time = 0
         for time in iterable:
             seed = MAIN_SEED+time+1 
-            g_updated = make_one_timestep(g.copy(), seed)
+            g_updated = make_one_timestep(g.copy(), seed,q=q)
             g = g_updated
         
             if time == EPOCHS-1:
@@ -128,16 +126,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
     # parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
+
+    parser.add_argument("--q", help="In-out parameter", type=float, default=1)
     parser.add_argument("--start", help="homophily between Majorities", type=float, default=0.1)
     parser.add_argument("--end", help="homophily between minorities", type=float, default=0.5)
     args = parser.parse_args()
     
     start_time = time.time()
+    MODEL = MODEL + "_q_{}".format(args.q)
     start_idx, end_idx = args.start, args.end
-    # run(args.hMM, args.hmm)
+    # run(args.hMM, args.hmm, q=args.q)
     print("STARTING IDX", start_idx, ", END IDX", end_idx)
     num_cores = 36
-    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2)) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
+    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), q=args.q) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
     # import numpy as np
     # for hMM in np.arange(0.0, 1.1, 0.1):
     #     for hmm in np.arange(0.0,1.1,0.1):
