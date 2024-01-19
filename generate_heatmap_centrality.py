@@ -22,10 +22,12 @@ if not os.path.exists(plot_directory):
 def get_grid(files, model,centrality):
     grid = np.zeros((len(hmm_list),len(hMM_list)))
     for file_name in files:
-      
+        fm_ext = float(file_name.split("fm")[-1].split("-")[0])
+        if fm_ext != fm: continue
         hMM, hmm = file_name.split("hMM")[-1].split("-")[0], file_name.split("hmm")[-1].split("-")[0]
         hMM, hmm = hMM.replace(".gpickle",""), hmm.replace(".gpickle","")
         hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
+      
         print("hMM: {}, hmm: {}".format(hMM, hmm))
      
 
@@ -67,15 +69,21 @@ def generate_heatmap(file_path, model, reco_type, centrality):
                  np.save(f, grid)
                  heatmap = grid.T
     elif reco_type == "after":
-        with open('dpah_before_{}.npy'.format(centrality), 'rb') as f:
-             before_fm_hat = np.load(f)
+        # with open('dpah_before_{}.npy'.format(centrality), 'rb') as f:
+        #      before_fm_hat = np.load(f)
    
         # heatmap = grid.T - before_fm_hat.T
+        print(np.max(grid),np.min(grid))
         heatmap = grid.T
 
     hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
     hMM_ticks = [np.round(hMM,2) for hMM in hMM_list]
-    ax = sns.heatmap(heatmap, cmap=plt.cm.coolwarm,xticklabels=hmm_ticks,yticklabels=hMM_ticks)
+    if centrality == "betweenness":
+        vmin, vmax = 0, 0.004
+    else:
+        vmin, vmax = 0.2, 0.5
+        print(vmin,vmax)
+    ax = sns.heatmap(heatmap, cmap=plt.cm.coolwarm,xticklabels=hmm_ticks,yticklabels=hMM_ticks,vmin=vmin,vmax=vmax)
     ax.invert_yaxis()
     ax.set_xlabel("Homophily for Minority Class")
     ax.set_ylabel("Homophily for Majority Class")

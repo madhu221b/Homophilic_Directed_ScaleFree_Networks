@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import networkx as nx
-from fairwalk import FairWalk
 from tqdm import tqdm
 import random
 import time
@@ -35,7 +34,7 @@ YM, Ym = 2.5, 2.5
 d = 0.03
 
    
-def make_one_timestep(g, seed):
+def make_one_timestep(g, seed,t=0,path="", p=1,q=1):
         '''Defines each timestep of the simulation:
             0. each node makes experiments
             1. loops in the permutation of nodes choosing the INFLUENCED node u (u->v means u follows v, v can influence u)
@@ -49,7 +48,7 @@ def make_one_timestep(g, seed):
         set_seed(seed)
 
         print("Generating Node Embeddings")
-        fw_model, fw_embeds = recommender_model(g,model="fw")
+        fw_model, fw_embeds = recommender_model(g,t,path,model="fw",p=p,q=q)
         print("Getting Link Recommendations from Fairwalk Model")
         u = g.nodes()
         recos = get_top_recos(g,fw_embeds, u) 
@@ -67,7 +66,7 @@ def make_one_timestep(g, seed):
         return g
 
 
-def run(hMM, hmm):
+def run(hMM, hmm,p=1,q=1):
     try:  
         # Setting seed
         np.random.seed(MAIN_SEED)
@@ -75,7 +74,7 @@ def run(hMM, hmm):
         folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(MODEL)
         new_filename = get_filename(MODEL, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
         new_path = os.path.join(folder_path, new_filename) 
-        if os.path.exists(new_path):
+        if os.path.exists(new_path) and False: # disabling this condition
            print("File exists for configuration hMM:{}, hmm:{}".format(hMM,hmm))
            return 
         print("hMM: {}, hmm: {}".format(hMM, hmm))
@@ -83,7 +82,9 @@ def run(hMM, hmm):
         # read the base graph from DPAH folder
         old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
         g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
-
+        ## trial ## 
+        # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N50-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.8-ID0.gpickle"
+        # g = nx.read_gpickle(path)
         node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
         nx.set_node_attributes(g, node2group, 'group')
    
@@ -91,13 +92,13 @@ def run(hMM, hmm):
         time = 0
         for time in iterable:
             seed = MAIN_SEED+time+1 
-            g_updated = make_one_timestep(g.copy(), seed)
+            g_updated = make_one_timestep(g.copy(), seed,time,new_path,p=p,q=q)
             g = g_updated
         
             if time == EPOCHS-1:
                 save_metadata(g, hMM, hmm, MODEL)
     except Exception as e:
-       print("Error in run function:", e)
+        print("Error in run : ", e)
 
 def get_filename(model,N,fm,d,YM,Ym,hMM,hmm):
     return "{}-N{}-fm{}{}{}{}{}{}".format(model, N, 
@@ -128,18 +129,21 @@ def save_metadata(g, hMM, hmm, model):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
-    # parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
-    parser.add_argument("--start", help="homophily between Majorities", type=float, default=0.1)
-    parser.add_argument("--end", help="homophily between minorities", type=float, default=0.5)
+    parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
+    parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
+    parser.add_argument("--p", help="Return parameter", type=float, default=1.0)
+    parser.add_argument("--q", help="In-out parameter", type=float, default=1.0)
+    # parser.add_argument("--start", help="homophily between Majorities", type=float, default=0.1)
+    # parser.add_argument("--end", help="homophily between minorities", type=float, default=0.5)
     args = parser.parse_args()
     
     start_time = time.time()
-    start_idx, end_idx = args.start, args.end
-    # run(args.hMM, args.hmm)
-    print("STARTING IDX", start_idx, ", END IDX", end_idx)
-    num_cores = 36
-    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2)) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
+    MODEL = MODEL + "_p_{}_q_{}".format(args.p,args.q)
+    # start_idx, end_idx = args.start, args.end
+    run(args.hMM, args.hmm, p=args.p, q=args.q)
+    # print("STARTING IDX", start_idx, ", END IDX", end_idx)
+    # num_cores = 36
+    # [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2),p=args.p, q=args.q) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
     # import numpy as np
     # for hMM in np.arange(0.0, 1.1, 0.1):
     #     for hmm in np.arange(0.0,1.1,0.1):
