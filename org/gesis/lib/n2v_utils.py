@@ -5,16 +5,25 @@ import pandas as pd
 import pickle as pkl
 import networkx as nx
 from sklearn.metrics.pairwise import cosine_similarity
+
+
 from fairwalk.fairwalk  import FairWalk
 from degreewalk.customwalk  import CustomWalk
 from node2vec import Node2Vec
 from node2vec_code.node2vec.node2vec import Node2Vec as custom_N2V
 from common_ngh_aware.node2vec.node2vec import Node2Vec as common_N2V
+
+from walkers.degreewalker import DegreeWalker
+
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
 WALK_LEN = 10
 NUM_WALKS = 200
 
+walker_dict = {
+  "degree" : DegreeWalker
+
+}
 def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
@@ -24,6 +33,18 @@ def rewiring_list(G, node, number_of_rewiring):
         node_neighbors = np.array(list(G.successors(node)))
         nodes_to_be_unfollowed = np.random.permutation(node_neighbors)[:number_of_rewiring]
         return list(map(lambda x: tuple([node, x]), nodes_to_be_unfollowed))
+
+def recommender_model_walker(G,t=0,path="",model="n2v",extra_params=dict(),num_cores=8, is_walk_viz=True):
+    WalkerObj = walker_dict[model.split("_")[0]] # degree_beta_1.0 for instance
+    walkobj =WalkerObj(G, dimensions=DIM, walk_len=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,**extra_params)
+    if is_walk_viz:
+        dict_path = path.replace(".gpickle","") + "_frac.pkl"
+        print(dict_path)
+        get_walk_plots(walkobj.walks, G,t,dict_path)
+       
+    model = walkobj.fit() 
+    emb_df = (pd.DataFrame([model.wv.get_vector(str(n)) for n in G.nodes()], index = G.nodes))
+    return model, emb_df
 
 
 def recommender_model(G,t=0,path="",model="n2v",p=1,q=1,num_cores=8, is_walk_viz=True):
