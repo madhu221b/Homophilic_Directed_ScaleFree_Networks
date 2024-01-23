@@ -14,7 +14,7 @@ class Walker(object):
         self.walk_len = walk_len
         self.workers = workers
 
-    def _generate_walks(self, graph, pi, type="local") -> list:
+    def _generate_walks(self, graph, d_graph, type="local") -> list:
         """
         Generates the random walks which will be used as the skip-gram input.
         :return: List of walks. Each walk is a list of nodes.
@@ -28,14 +28,14 @@ class Walker(object):
             parallel_generate_walks = self.local_generate_walk
         
         walk_results = Parallel(n_jobs=self.workers)(
-            delayed(parallel_generate_walks)(graph, pi, idx)
+            delayed(parallel_generate_walks)(graph, d_graph, idx)
                                         for idx, num_walks
             in enumerate(num_walks_lists, 1))
 
         walks = flatten(walk_results)
         self.walks = walks
 
-    def local_generate_walk(self, graph, pi, cpu_num):
+    def local_generate_walk(self, graph, d_graph, cpu_num):
         walks = list()
         pbar = tqdm(total=self.num_walks, desc='Generating walks (CPU: {})'.format(cpu_num))
 
@@ -52,8 +52,8 @@ class Walker(object):
                 walk = [source]
                 while len(walk) < self.walk_len:
                        last_node = walk[-1]
-                       walk_options = list(graph.neighbors(last_node))
-                       probabilities = self.pi[last_node][walk_options]
+                       walk_options = list(d_graph[last_node]["ngh"])
+                       probabilities = d_graph[last_node]["pr"]
                        if len(probabilities) == 0: break  # skip nodes with no ngs
                        next_node = np.random.choice(walk_options, size=1, p=probabilities)[0]
                        walk.append(next_node)
@@ -76,7 +76,7 @@ class Walker(object):
         if 'workers' not in skip_gram_params:
             skip_gram_params['workers'] = self.workers
 
-        if 'vector_size' not in skip_gram_params:
-            skip_gram_params['vector_size'] = self.dimensions
+        if 'size' not in skip_gram_params:
+            skip_gram_params['size'] = self.dimensions
 
         return gensim.models.Word2Vec(self.walks, **skip_gram_params)

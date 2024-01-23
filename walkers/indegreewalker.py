@@ -6,19 +6,18 @@ try:
 except Exception as error:
     from walker import Walker
 
-class DegreeWalker(Walker):
+class InDegreeWalker(Walker):
     def __init__(self,graph,beta=0,workers=1,dimensions=64,walk_len=10,num_walks=200):
-        print("Degree Walker with beta = ", beta)
+        print("In Degree Walker with beta = ", beta)
         super().__init__(graph, workers=workers,dimensions=dimensions,walk_len=walk_len,num_walks=num_walks)
-        """pi i-> j =  A_ij (q_j^beta) / sum l=1 ^ N Ail q_l^beta """
-        self.graph = self.graph.to_undirected()
+        """pi i-> j =  A_ij (q_j_indegree^beta) / sum l=1 ^ N Ail q_l_indegree^beta """
         self.number_of_nodes = self.graph.number_of_nodes()
 
         # Transition Prs matrix
         # self.pi = np.zeros((self.number_of_nodes, self.number_of_nodes))
         self.d_graph = {node: {"pr":list(), "ngh":list()} for node in self.graph.nodes()}
         self.A = nx.to_numpy_array(self.graph, nodelist=sorted(self.graph.nodes())) 
-        degree = dict(nx.degree(self.graph))
+        degree = dict(self.graph.in_degree()) # note now it is in degree
         self.degree_pow = dict({node: (np.round(degree**beta,5) if degree != 0 else 0) for node, degree in degree.items()})
     
         # compute probabilities

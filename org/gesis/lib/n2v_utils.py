@@ -14,14 +14,19 @@ from node2vec_code.node2vec.node2vec import Node2Vec as custom_N2V
 from common_ngh_aware.node2vec.node2vec import Node2Vec as common_N2V
 
 from walkers.degreewalker import DegreeWalker
-
+from walkers.indegreewalker import InDegreeWalker
+from walkers.commonnghaware import CommonNeighborWalker
+from walkers.levywalker import LevyWalker
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
 WALK_LEN = 10
 NUM_WALKS = 200
 
 walker_dict = {
-  "degree" : DegreeWalker
+  "degree" : DegreeWalker,
+  "indegree": InDegreeWalker,
+  "commonngh": CommonNeighborWalker,
+  "levy": LevyWalker
 
 }
 def set_seed(seed):
