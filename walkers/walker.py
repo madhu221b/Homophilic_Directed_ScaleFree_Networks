@@ -26,6 +26,8 @@ class Walker(object):
         num_walks_lists = np.array_split(range(self.num_walks), self.workers)
         if type == "local":
             parallel_generate_walks = self.local_generate_walk
+        elif type == "fair_local":
+            parallel_generate_walks = self.fair_local_generate_walk
         
         walk_results = Parallel(n_jobs=self.workers)(
             delayed(parallel_generate_walks)(graph, d_graph, idx)
@@ -64,6 +66,42 @@ class Walker(object):
     
         pbar.close()
         return walks
+
+    def fair_local_generate_walk(self, graph, d_graph, cpu_num):
+        walks = list()
+        pbar = tqdm(total=self.num_walks, desc='[Fair local] Generating walks (CPU: {})'.format(cpu_num))
+
+        for n_walk in range(self.num_walks):
+  
+            pbar.update(1)
+
+            shuffled_nodes = list(graph.nodes())
+            random.shuffle(shuffled_nodes)
+
+            # Start a random walk from every node
+            for source in shuffled_nodes:
+  
+                walk = [source]
+                while len(walk) < self.walk_len:
+                       last_node = walk[-1]
+                       walk_options = d_graph[last_node]["ngh"]
+                       all_possible_groups = list(walk_options.keys())
+
+                       # note this is where we choose a group randomly
+                       random_group = np.random.choice(all_possible_groups, size=1)[0]
+                       walk_options = walk_options[random_group]
+                       probabilities = d_graph[last_node]["pr"][random_group]
+  
+                       if len(probabilities) == 0: break  # skip nodes with no ngs
+                       next_node = np.random.choice(walk_options, size=1, p=probabilities)[0]
+                       walk.append(next_node)
+
+                walk = list(map(str, walk))  # Convert all to strings
+                walks.append(walk)
+
+    
+        pbar.close()
+        return walks    
 
     def fit(self, **skip_gram_params) -> gensim.models.Word2Vec:
         """
