@@ -17,6 +17,7 @@ from walkers.degreewalker import DegreeWalker
 from walkers.indegreewalker import InDegreeWalker
 from walkers.commonnghaware import CommonNeighborWalker
 from walkers.levywalker import LevyWalker
+from walkers.fairindegreewalker import FairInDegreeWalker
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
 WALK_LEN = 10
@@ -25,6 +26,7 @@ NUM_WALKS = 200
 walker_dict = {
   "degree" : DegreeWalker,
   "indegree": InDegreeWalker,
+  "fairindegree": FairInDegreeWalker, 
   "commonngh": CommonNeighborWalker,
   "levy": LevyWalker
 
@@ -39,9 +41,21 @@ def rewiring_list(G, node, number_of_rewiring):
         nodes_to_be_unfollowed = np.random.permutation(node_neighbors)[:number_of_rewiring]
         return list(map(lambda x: tuple([node, x]), nodes_to_be_unfollowed))
 
-def recommender_model_walker(G,t=0,path="",model="n2v",extra_params=dict(),num_cores=8, is_walk_viz=True):
+def get_walks(G,model="n2v",extra_params=dict(),num_cores=8):
+    if model == "n2v":
+         node2vec = Node2Vec(G, dimensions=DIM, walk_length= 10, num_walks=4, workers=num_cores)
+         return node2vec.walks
+    elif model == "fw":
+        fw_model = FairWalk(G, dimensions=DIM, walk_length=10, num_walks=4, workers=num_cores)
+        return fw_model.walks
+
+    WalkerObj = walker_dict[model] # degree_beta_1.0 for instance
+    walkobj = WalkerObj(G, dimensions=DIM, walk_len=10, num_walks=4, workers=num_cores,**extra_params)
+    return walkobj.walks
+
+def recommender_model_walker(G,t=0,path="",model="n2v",extra_params=dict(),num_cores=8, is_walk_viz=False):
     WalkerObj = walker_dict[model.split("_")[0]] # degree_beta_1.0 for instance
-    walkobj =WalkerObj(G, dimensions=DIM, walk_len=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,**extra_params)
+    walkobj = WalkerObj(G, dimensions=DIM, walk_len=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,**extra_params)
     if is_walk_viz:
         dict_path = path.replace(".gpickle","") + "_frac.pkl"
         print(dict_path)

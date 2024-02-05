@@ -67,43 +67,43 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
 
 
 def run(hMM, hmm,model,extra_params):
-    # try:  
+    try:  
         # Setting seed
-    np.random.seed(MAIN_SEED)
-    random.seed(MAIN_SEED)
-    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(model)
-    new_filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
-    new_path = os.path.join(folder_path, new_filename) 
-    if os.path.exists(new_path) and False: # disabling this condition
-        print("File exists for configuration hMM:{}, hmm:{}".format(hMM,hmm))
-        return 
-    print("hMM: {}, hmm: {}".format(hMM, hmm))
+        np.random.seed(MAIN_SEED)
+        random.seed(MAIN_SEED)
+        folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+        new_filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
+        new_path = os.path.join(folder_path, new_filename) 
+        if os.path.exists(new_path) and False: # disabling this condition
+            print("File exists for configuration hMM:{}, hmm:{}".format(hMM,hmm))
+            return 
+        print("hMM: {}, hmm: {}".format(hMM, hmm))
 
-    # read the base graph from DPAH folder
-    old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
-    g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
+        # read the base graph from DPAH folder
+        old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
+        g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
 
-    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
-    nx.set_node_attributes(g, node2group, 'group')
+        node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+        nx.set_node_attributes(g, node2group, 'group')
 
-    iterable = tqdm(range(EPOCHS), desc='Timesteps', leave=True) 
-    time = 0
-    for time in iterable:
-        is_file, g_obj =  is_file_exists(hMM,hmm,model,time)
-        if not is_file:
-            print("File does not exist for time {}, creating now".format(time))
-            seed = MAIN_SEED+time+1 
-            g_updated = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
-            g = g_updated
-            save_metadata(g, hMM, hmm, model,t=time)
-        else:
-            print("File exists for time {}, loading it... ".format(time))
-            g = g_obj
+        iterable = tqdm(range(EPOCHS), desc='Timesteps', leave=True) 
+        time = 0
+        for time in iterable:
+            is_file, g_obj =  is_file_exists(hMM,hmm,model,time)
+            if not is_file:
+                print("File does not exist for time {}, creating now".format(time))
+                seed = MAIN_SEED+time+1 
+                g_updated = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
+                g = g_updated
+                save_metadata(g, hMM, hmm, model,t=time)
+            else:
+                print("File exists for time {}, loading it... ".format(time))
+                g = g_obj
 
-            # if time == EPOCHS-1:
+                # if time == EPOCHS-1:
             
-    # except Exception as e:
-    #     print("Error in run : ", e)
+    except Exception as e:
+         print("Error in run : ", e)
 
 
 def is_file_exists(hMM, hmm, model,t):
@@ -136,9 +136,10 @@ def save_metadata(g, hMM, hmm, model,t=0):
 
     ## [Personal] Specifying jobs
     njobs = 24
-    df = get_node_metadata_as_dataframe(g, njobs=njobs)
-    csv_fn = os.path.join(folder_path,'{}_{}.csv'.format(filename,t))
-    io.save_csv(df, csv_fn)
+    if t == EPOCHS - 1:
+        df = get_node_metadata_as_dataframe(g, njobs=njobs)
+        csv_fn = os.path.join(folder_path,'{}_t_{}.csv'.format(filename,t))
+        io.save_csv(df, csv_fn)
     
     print("Saving graph and csv file at, ", fn.replace(".gpickle",""))
 
