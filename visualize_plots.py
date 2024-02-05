@@ -263,6 +263,45 @@ def visualize_walk(graph_path,model,extra_params=dict()):
                            edge_color=edge_colors, pos=pos, ax=ax[1])
     fig.savefig("trial_{}.png".format(model), bbox_inches='tight')
 
+def get_label(num):
+    if num == 0: return "M"
+    else: return "m"
+
+def get_edge_dict(g):
+    key_list=["M->M","m->M","M->m","m->m"]
+    edge_dict = {key:0 for key in key_list}
+    node_attr = nx.get_node_attributes(g, "group")
+
+    for u, v in g.edges():
+        key = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
+        edge_dict[key]+= 1
+    
+    result_dict = dict()
+    maj_den, min_den = (edge_dict["M->m"]+edge_dict["M->M"]), (edge_dict["m->m"]+edge_dict["m->M"])
+    result_dict["maj_inlink"] = edge_dict["M->M"]/maj_den
+    result_dict["min_inlink"] = edge_dict["m->m"]/min_den
+    result_dict["min_outlink"] = edge_dict["m->M"]/min_den
+    result_dict["maj_outlink"] = edge_dict["M->m"]/maj_den
+    return result_dict
+
+def get_homo_to_edge_dict(model):
+    main_dict = ()
+    for hMM in hMM_list:
+        for hmm in hmm_list:
+            hMM, hmm = np.round(hMM,2), np.round(hmm,2)
+            if model.startswith("indegree"):
+                path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
+                g = nx.read_gpickle(path)
+                edge_dict = get_edge_dict(g)
+                main_dict[",".format(hMM,hmm)] = edge_dict
+
+    return main_dict
+
+def plot_scatter_edge_link_ratio(model):
+    homo_to_edge_link = get_homo_to_edge_dict(model)
+
+
+    
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -273,5 +312,6 @@ if __name__ == "__main__":
    # get_for_all_combinations()
    # get_heatmap_frac(path, "fw")
 
-   path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
-   visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
+#    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
+#    visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
+    get_homo_to_edge_dict(model="indegree_beta_2.0")
