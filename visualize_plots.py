@@ -285,23 +285,55 @@ def get_edge_dict(g):
     return result_dict
 
 def get_homo_to_edge_dict(model):
-    main_dict = ()
+    main_dict = dict()
     for hMM in hMM_list:
         for hmm in hmm_list:
             hMM, hmm = np.round(hMM,2), np.round(hmm,2)
             if model.startswith("indegree"):
                 path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
-                g = nx.read_gpickle(path)
-                edge_dict = get_edge_dict(g)
-                main_dict[",".format(hMM,hmm)] = edge_dict
+        
+            g = nx.read_gpickle(path)
+            edge_dict = get_edge_dict(g)
+            key = "{},{}".format(hMM,hmm)
+            main_dict[key] = edge_dict
 
     return main_dict
 
-def plot_scatter_edge_link_ratio(model):
+def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"]):
     homo_to_edge_link = get_homo_to_edge_dict(model)
+    display_dict = {"min_inlink":"m->m", "min_outlink":"m->M"}
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    xdata1, ydata1, zdata1, c1 = [], [], [], []
+    zdata2, c2 = [], []
+    for key, value in homo_to_edge_link.items():
+        arr = key.split(",")
+        hMM, hmm = float(arr[0]), float(arr[1])
+        xdata1.append(hmm)
+        ydata1.append(hMM)
+        zdata1.append(1)
+        zdata2.append(2)
+        c1.append(value[display_keys[0]])
+        c2.append(value[display_keys[1]])
 
+    ax.scatter3D(xdata1, ydata1, zdata1, c=c1, cmap='coolwarm',marker="o")
+    ax.scatter3D(xdata1, ydata1, zdata2, c=c2, cmap='coolwarm',marker="^")
+
+    ax.set_xlabel('hmm')
+    ax.set_ylabel('hMM')
+    ax.set_yticks([0.0,0.5,1.0])
+    ax.set_xticks([0.0,0.5,1.0])
+    ax.set_zticks([1,2])
+    ax.set_zticklabels([display_dict[display_keys[0]], display_dict[display_keys[1]]])
+    ax.invert_yaxis()
+    fig.savefig('plots/scatter_{}.png'.format(model),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
 
     
+
+
+
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -314,4 +346,5 @@ if __name__ == "__main__":
 
 #    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
 #    visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
-    get_homo_to_edge_dict(model="indegree_beta_2.0")
+    # get_homo_to_edge_dict(model="indegree_beta_2.0")
+    plot_scatter_edge_link_ratio(model="indegree_beta_2.0")
