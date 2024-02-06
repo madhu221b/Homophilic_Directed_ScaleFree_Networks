@@ -291,8 +291,11 @@ def get_homo_to_edge_dict(model):
             hMM, hmm = np.round(hMM,2), np.round(hmm,2)
             if model.startswith("indegree"):
                 path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
-        
+            else:
+                path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}.gpickle".format(model,model,hMM,hmm)
             g = nx.read_gpickle(path)
+            node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+            nx.set_node_attributes(g, node2group, 'group')
             edge_dict = get_edge_dict(g)
             key = "{},{}".format(hMM,hmm)
             main_dict[key] = edge_dict
@@ -301,10 +304,10 @@ def get_homo_to_edge_dict(model):
 
 def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"]):
     homo_to_edge_link = get_homo_to_edge_dict(model)
-    display_dict = {"min_inlink":"m->m", "min_outlink":"m->M"}
+    display_dict = {"min_inlink":"m->m", "min_outlink":"m->M","maj_outlink":"M->m","maj_inlink":"M->M"}
     fig = plt.figure()
     ax = plt.axes(projection='3d')
-    
+    cmap = "coolwarm"
     xdata1, ydata1, zdata1, c1 = [], [], [], []
     zdata2, c2 = [], []
     for key, value in homo_to_edge_link.items():
@@ -317,8 +320,8 @@ def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"
         c1.append(value[display_keys[0]])
         c2.append(value[display_keys[1]])
 
-    ax.scatter3D(xdata1, ydata1, zdata1, c=c1, cmap='coolwarm',marker="o")
-    ax.scatter3D(xdata1, ydata1, zdata2, c=c2, cmap='coolwarm',marker="^")
+    data1 = ax.scatter3D(xdata1, ydata1, zdata1, c=c1, cmap=cmap,marker="o")
+    data2 = ax.scatter3D(xdata1, ydata1, zdata2, c=c2, cmap=cmap,marker="^")
 
     ax.set_xlabel('hmm')
     ax.set_ylabel('hMM')
@@ -327,7 +330,13 @@ def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"
     ax.set_zticks([1,2])
     ax.set_zticklabels([display_dict[display_keys[0]], display_dict[display_keys[1]]])
     ax.invert_yaxis()
-    fig.savefig('plots/scatter_{}.png'.format(model),bbox_inches='tight')   # save the figure to file
+
+    # norm = plt.Normalize(np.min(tars), np.max(tars)) norm=norm
+    sm = plt.cm.ScalarMappable(cmap=cmap)
+    sm.set_array([])
+    cb = ax.figure.colorbar(sm, orientation="horizontal")
+    cb.ax.set_title("Strength of Edge Ratio")
+    fig.savefig('plots/scatter_{}_2.png'.format(model),bbox_inches='tight')   # save the figure to file
     plt.close(fig)    # close the figure window
 
     
@@ -346,5 +355,7 @@ if __name__ == "__main__":
 
 #    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
 #    visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
+    # # get_homo_to_edge_dict(model="indegree_beta_2.0")
+   plot_scatter_edge_link_ratio(model="n2v_p_1.0_q_1.0",display_keys=["maj_outlink","min_outlink"])
     # get_homo_to_edge_dict(model="indegree_beta_2.0")
-    plot_scatter_edge_link_ratio(model="indegree_beta_2.0")
+    # plot_scatter_edge_link_ratio(model="indegree_beta_2.0")
