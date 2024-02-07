@@ -394,9 +394,6 @@ def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"
     plt.close(fig)    # close the figure window
 
     
-def pearson_correlation(item1, item2):
-    pass
-
 
 def get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="maj_outlink"):
     all_files = os.listdir(file_path)
@@ -418,6 +415,145 @@ def get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="maj_outli
     print(r[0][1])
 
 
+def get_centrality_dict(model,hMM,hmm,centrality="betweenness"):
+
+    dict_folder = "./centrality/{}/{}".format(centrality,model)  
+    dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
+    with open(dict_file_name, 'rb') as f:                
+        centrality_dict = pkl.load(f)
+        return centrality_dict
+
+def plot_scatter_plots_2_models(model1,model2,hMM, hmm, edge_types=["M->m","m->M","m->m","M->M"]):
+    # fig, ax = plt.subplots() 
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    edge_dict_1 = {key:[] for key in edge_types}
+    edge_dict_2 = {key:[] for key in edge_types}
+
+    colors = ["#2EC83D", "#3F6A43","#24D8D8", "#058181"]
+    
+    path1 = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model1,model1,hMM,hmm)   
+    path2 = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}.gpickle".format(model2,model2,hMM,hmm)
+    
+    g1 = nx.read_gpickle(path1)
+    node2group = {node:g1.nodes[node]["m"] for node in g1.nodes()}
+    nx.set_node_attributes(g1, node2group, 'group')
+    node_attr_1 = nx.get_node_attributes(g1, "group")
+
+    g2 = nx.read_gpickle(path2)
+    node2group = {node:g2.nodes[node]["m"] for node in g2.nodes()}
+    nx.set_node_attributes(g2, node2group, 'group')
+    node_attr_2 = nx.get_node_attributes(g2, "group")
+    
+    # edges = []
+    for u, v in g1.edges():
+        edge_label = "{}->{}".format(get_label(node_attr_1[u]),get_label(node_attr_1[v]))      
+        # if edge_label == edge_type:
+        # edges.append([u,v])
+        if edge_label in edge_types:
+           edge_dict_1[edge_label].append([u,v])
+    
+    for u, v in g2.edges():
+        edge_label = "{}->{}".format(get_label(node_attr_2[u]),get_label(node_attr_2[v]))      
+        # if edge_label == edge_type:
+        # edges.append([u,v])
+        if edge_label in edge_types:
+           edge_dict_2[edge_label].append([u,v])
+    
+    centrality_dict_1 = get_centrality_dict(model1,hMM,hmm)
+    centrality_dict_2 = get_centrality_dict(model2,hMM,hmm)
+    all_values =  list(centrality_dict_1.values()) + list(centrality_dict_2.values())
+    max_value, min_value = max(all_values), min(all_values)
+    mid_value = (min_value+max_value)/2
+    i = 0
+    zs = [-0.25,-0.5,0,0.5]
+    zs_labels = []
+    zs_ticks = []
+    for key, value in edge_dict_1.items():
+        source_bet, dest_bet = [], []
+        for source, dest in value:
+            source_bet.append(centrality_dict_1[source])
+            dest_bet.append(centrality_dict_1[dest])
+        
+        source_bet_2, dest_bet_2 = [], []
+        for source, dest in edge_dict_2[key]:
+            source_bet_2.append(centrality_dict_2[source])
+            dest_bet_2.append(centrality_dict_2[dest])
+    
+        # ax.scatter(source_bet, dest_bet, marker = "o",color=colors[i],label=key)
+        ax.scatter3D(source_bet, dest_bet, zs[i], marker = "o",color=colors[i])
+        zs_labels.append(key)
+        zs_ticks.append(zs[i])
+        i+=1 
+        ax.scatter3D(source_bet_2, dest_bet_2, zs[i], marker = "^",color=colors[i])
+        zs_labels.append("")
+        zs_ticks.append(zs[i])
+        
+       
+    
+    ax.set_xlabel("Source Node")
+    ax.set_ylabel("Destination Node", labelpad=10)
+    ax.set_zticks(zs_ticks)
+    ax.set_zticklabels(zs_labels)
+    ax.set_yticks([min_value, mid_value, max_value])
+    ax.set_xticks([min_value, mid_value, max_value])
+    ax.invert_yaxis()
+    fig.savefig('plots/scatter_2models_hMM_{}_hmm_{}.png'.format(hMM,hmm),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
+
+def plot_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","M->M"]):
+    # fig, ax = plt.subplots() 
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    edge_dict = {key:[] for key in edge_types}
+    if "M->M" in edge_types:
+        colors = ["#2EC83D", "#3F6A43"]
+    else:
+        colors = ["#24D8D8", "#058181"]
+    if model.startswith("indegree"):
+        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
+    else:
+        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}.gpickle".format(model,model,hMM,hmm)
+    
+    g = nx.read_gpickle(path)
+    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+    nx.set_node_attributes(g, node2group, 'group')
+    node_attr = nx.get_node_attributes(g, "group")
+    
+    # edges = []
+    for u, v in g.edges():
+        edge_label = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
+        # if edge_label == edge_type:
+        # edges.append([u,v])
+        if edge_label in edge_types:
+           edge_dict[edge_label].append([u,v])
+    
+    centrality_dict = get_centrality_dict(model,hMM,hmm)
+    max_value, min_value = max(centrality_dict.values()), min(centrality_dict.values())
+    mid_value = (min_value+max_value)/2
+    i = 0
+    zs = [1, 2]
+    zs_labels = []
+    for key, value in edge_dict.items():
+        source_bet, dest_bet = [], []
+        for source, dest in value:
+            source_bet.append(centrality_dict[source])
+            dest_bet.append(centrality_dict[dest])
+    
+        # ax.scatter(source_bet, dest_bet, marker = "o",color=colors[i],label=key)
+        ax.scatter3D(source_bet, dest_bet, zs[i], marker = "o",color=colors[i])
+        zs_labels.append(key)
+        i+=1 
+    
+    ax.set_xlabel("Source Node")
+    ax.set_ylabel("Destination Node", labelpad=10)
+    ax.set_zticks(zs)
+    ax.set_zticklabels(zs_labels)
+    ax.set_yticks([min_value, mid_value, max_value])
+    ax.set_xticks([min_value, mid_value, max_value])
+    ax.invert_yaxis()
+    fig.savefig('plots/scatter_hMM_{}_hmm_{}.pdf'.format(hMM,hmm),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -438,5 +574,9 @@ if __name__ == "__main__":
    #  plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
    
    model = "indegree_beta_2.0"
-   file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
-   get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
+  #  model = "n2v_p_1.0_q_1.0"
+   # file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+   # get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
+
+plot_scatter_plots(model,hMM=0.1, hmm=0.8, edge_types=["M->M", "m->m"])
+# plot_scatter_plots_2_models(model1="indegree_beta_2.0",model2 = "n2v_p_1.0_q_1.0",hMM=1.0, hmm=0.1, edge_types=["m->M","M->m"])
