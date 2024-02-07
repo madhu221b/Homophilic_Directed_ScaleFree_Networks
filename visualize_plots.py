@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 from org.gesis.lib.n2v_utils import get_walks
-
+from generate_heatmap_centrality import get_grid
 
 T = 30
 hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
@@ -394,6 +394,28 @@ def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"
     plt.close(fig)    # close the figure window
 
     
+def pearson_correlation(item1, item2):
+    pass
+
+
+def get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="maj_outlink"):
+    all_files = os.listdir(file_path)
+    graph_files = [os.path.join(file_path,file_name) for file_name in all_files if "netmeta" not in file_name and ".gpickle" in file_name and "t_29" in file_name]
+    centrality_grid = get_grid(graph_files, model, centrality="betweenness")
+    # grid[hmm_idx][hMM_idx] = avg_val
+
+    edge_grid = np.zeros_like(centrality_grid)
+    edge_ratio_dict = get_homo_to_edge_dict(model)
+    for key, value in edge_ratio_dict.items():
+        arr = key.split(",")
+        hMM, hmm = float(arr[0]), float(arr[1])
+        hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
+        edge_grid[hmm_idx][hMM_idx] = value[ratio]
+    
+    # r = np.corrcoef(centrality_grid.flatten(), edge_grid.flatten())
+    r = np.corrcoef(edge_grid.flatten(), centrality_grid.flatten())
+
+    print(r[0][1])
 
 
 
@@ -413,4 +435,8 @@ if __name__ == "__main__":
    # plot_scatter_edge_link_ratio(model="n2v_p_1.0_q_1.0",display_keys=["maj_outlink","min_outlink"])
     # get_homo_to_edge_dict(model="indegree_beta_2.0")
    # plot_scatter_edge_link_ratio(model="indegree_beta_2.0",display_keys=["maj_outlink","min_outlink"])
-    plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
+   #  plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
+   
+   model = "indegree_beta_2.0"
+   file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+   get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
