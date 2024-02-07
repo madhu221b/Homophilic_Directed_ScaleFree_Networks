@@ -276,8 +276,7 @@ def get_edge_dict(g):
         key = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
         edge_dict[key]+= 1
     
-    ## print statement ##
-    print("Edge Dict: ", edge_dict, file=open("edge_dict.txt", "a"))
+
     result_dict = dict()
     maj_den, min_den = (edge_dict["M->m"]+edge_dict["M->M"]), (edge_dict["m->m"]+edge_dict["m->M"])
     result_dict["maj_inlink"] = edge_dict["M->M"]/maj_den
@@ -285,7 +284,6 @@ def get_edge_dict(g):
     result_dict["min_outlink"] = edge_dict["m->M"]/min_den
     result_dict["maj_outlink"] = edge_dict["M->m"]/maj_den
 
-    print("Result Dict: ", result_dict, file=open("edge_dict.txt", "a"))
     return result_dict
 
 def get_homo_to_edge_dict(model):
@@ -293,7 +291,7 @@ def get_homo_to_edge_dict(model):
     for hMM in hMM_list:
         for hmm in hmm_list:
             hMM, hmm = np.round(hMM,2), np.round(hmm,2)
-            print("hMM:{}, hmm:{}".format(hMM,hmm), file=open("edge_dict.txt", "a"))
+
             if model.startswith("indegree"):
                 path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
             else:
@@ -306,6 +304,52 @@ def get_homo_to_edge_dict(model):
             main_dict[key] = edge_dict
 
     return main_dict
+
+def plot_diff_scatter_edge_link_ratio(model1, model2, display_keys=["min_inlink","min_outlink"]):
+    homo_to_edge_link_1 = get_homo_to_edge_dict(model1)
+    homo_to_edge_link_2 = get_homo_to_edge_dict(model2)
+    display_dict = {"min_inlink":"m->m", "min_outlink":"m->M","maj_outlink":"M->m","maj_inlink":"M->M"}
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    cmap = "coolwarm"
+    xdata1, ydata1, zdata1, c1 = [], [], [], []
+    zdata2, c2 = [], []
+    for key, value in homo_to_edge_link_1.items():
+        arr = key.split(",")
+        hMM, hmm = float(arr[0]), float(arr[1])
+        xdata1.append(hmm)
+        ydata1.append(hMM)
+        zdata1.append(1)
+        zdata2.append(2)
+        diff1 = value[display_keys[0]] - homo_to_edge_link_2[key][display_keys[0]]
+        diff2 = value[display_keys[1]] - homo_to_edge_link_2[key][display_keys[1]]
+        c1.append(diff1)
+        c2.append(diff2)
+
+    all_data = np.concatenate([c1, c2])
+    norm = plt.Normalize(np.min(all_data), np.max(all_data))
+    data1 = ax.scatter3D(xdata1, ydata1, zdata1, c=c1, cmap=cmap,marker="o",norm=norm)
+    data2 = ax.scatter3D(xdata1, ydata1, zdata2, c=c2, cmap=cmap,marker="^",norm=norm)
+
+    ax.set_xlabel('hmm')
+    ax.set_ylabel('hMM')
+    ax.set_yticks([0.0,0.5,1.0])
+    ax.set_xticks([0.0,0.5,1.0])
+    ax.set_zticks([1,2])
+    ax.set_zticklabels([display_dict[display_keys[0]], display_dict[display_keys[1]]])
+    ax.invert_yaxis()
+
+    #c1.extend(c2)
+    # norm = plt.Normalize(np.min(c1), np.max(c1)) norm=norm
+    smap = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cb = fig.colorbar(smap, ax=ax, fraction=0.1, shrink = 0.8, orientation="horizontal")
+
+    # sm.set_array([])
+    # cb = ax.figure.colorbar(sm,)
+    cb.ax.set_title("Variation in Edge Ratio")
+    fig.savefig('plots/scatter_diff__{}_{}.pdf'.format(model1,model2),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
+
 
 def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"]):
     homo_to_edge_link = get_homo_to_edge_dict(model)
@@ -346,7 +390,7 @@ def plot_scatter_edge_link_ratio(model, display_keys=["min_inlink","min_outlink"
     # sm.set_array([])
     # cb = ax.figure.colorbar(sm,)
     cb.ax.set_title("Strength of Edge Ratio")
-    fig.savefig('plots/scatter_{}_2.png'.format(model),bbox_inches='tight')   # save the figure to file
+    fig.savefig('plots/scatter_{}.pdf'.format(model),bbox_inches='tight')   # save the figure to file
     plt.close(fig)    # close the figure window
 
     
@@ -368,4 +412,5 @@ if __name__ == "__main__":
     # # get_homo_to_edge_dict(model="indegree_beta_2.0")
    # plot_scatter_edge_link_ratio(model="n2v_p_1.0_q_1.0",display_keys=["maj_outlink","min_outlink"])
     # get_homo_to_edge_dict(model="indegree_beta_2.0")
-    plot_scatter_edge_link_ratio(model="indegree_beta_2.0",display_keys=["maj_inlink","min_inlink"])
+   # plot_scatter_edge_link_ratio(model="indegree_beta_2.0",display_keys=["maj_outlink","min_outlink"])
+    plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
