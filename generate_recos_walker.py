@@ -19,16 +19,11 @@ from collections import Counter
 
 
 
-DPAH_path = "../Homophilic_Directed_ScaleFree_Networks/DPAH"
-# get all files (each files corresponds to one configuration of hmm & hMM)
-all_files = os.listdir(DPAH_path)
-graph_files = [file_name for file_name in all_files if ".gpickle" in file_name]
-
 MAIN_SEED = 42
 EPOCHS = 30
 
 
-fm = 0.3
+# fm = 0.3
 N = 1000
 YM, Ym = 2.5, 2.5
 d = 0.03
@@ -66,12 +61,12 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
         return g
 
 
-def run(hMM, hmm,model,extra_params):
+def run(hMM, hmm,model,fm,extra_params):
     try:  
         # Setting seed
         np.random.seed(MAIN_SEED)
         random.seed(MAIN_SEED)
-        folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+        folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}_fm_{}".format(model,fm)
         new_filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
         new_path = os.path.join(folder_path, new_filename) 
         if os.path.exists(new_path) and False: # disabling this condition
@@ -81,6 +76,7 @@ def run(hMM, hmm,model,extra_params):
 
         # read the base graph from DPAH folder
         old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
+        DPAH_path = "../Homophilic_Directed_ScaleFree_Networks/DPAH_fm_{}".format(fm)
         g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
 
         node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
@@ -89,13 +85,13 @@ def run(hMM, hmm,model,extra_params):
         iterable = tqdm(range(EPOCHS), desc='Timesteps', leave=True) 
         time = 0
         for time in iterable:
-            is_file, g_obj =  is_file_exists(hMM,hmm,model,time)
+            is_file, g_obj =  is_file_exists(hMM,hmm,model,fm,time)
             if not is_file:
                 print("File does not exist for time {}, creating now".format(time))
                 seed = MAIN_SEED+time+1 
                 g_updated = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
                 g = g_updated
-                save_metadata(g, hMM, hmm, model,t=time)
+                save_metadata(g, hMM, hmm, model,fm,t=time)
             else:
                 print("File exists for time {}, loading it... ".format(time))
                 g = g_obj
@@ -106,8 +102,8 @@ def run(hMM, hmm,model,extra_params):
          print("Error in run : ", e)
 
 
-def is_file_exists(hMM, hmm, model,t):
-    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+def is_file_exists(hMM, hmm, model,fm,t):
+    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}_fm_{}".format(model,fm)
     filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm)
     fn = os.path.join(folder_path,'{}_t_{}.gpickle'.format(filename,t))
     if os.path.exists(fn):
@@ -125,8 +121,8 @@ def get_filename(model,N,fm,d,YM,Ym,hMM,hmm):
                                              '-hMM{}'.format(hMM),
                                              '-hmm{}'.format(hmm))
 
-def save_metadata(g, hMM, hmm, model,t=0):
-    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+def save_metadata(g, hMM, hmm, model,fm,t=0):
+    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}_fm_{}".format(model, fm)
     create_subfolders(folder_path)
     filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm)
     
@@ -150,6 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
     parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
     parser.add_argument("--model", help="Different Walker Models", type=str)
+    parser.add_argument("--fm", help="fraction of minorities", type=float, default=0.3)
     parser.add_argument("--beta", help="Beta paramater", type=float, default=1.0)
     parser.add_argument("--alpha", help="Alpha paramater (Levy)", type=float, default=1.0)
 
@@ -167,12 +164,12 @@ if __name__ == "__main__":
     else:
        model =  "{}_beta_{}".format(args.model,args.beta)
        extra_params = {"beta":args.beta}
-    # run(args.hMM, args.hmm, model=model, extra_params=extra_params)
+    # run(args.hMM, args.hmm, model=model, fm=args.fm, extra_params=extra_params)
 
     start_idx, end_idx = args.start, args.end
     print("STARTING IDX", start_idx, ", END IDX", end_idx)
     num_cores = 36
-    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
+    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, fm=args.fm,extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
 
 
     print("--- %s seconds ---" % (time.time() - start_time))

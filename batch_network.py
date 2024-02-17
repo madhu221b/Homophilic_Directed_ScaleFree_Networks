@@ -34,8 +34,8 @@ def run(model, N, fm, d, ploM, plom, hMM, hmm, epoch, output):
         
     print(model, N, fm, d, ploM, plom, hMM, hmm, output)
     filename = get_filename(model, N, fm, d, ploM, plom, hMM, hmm, epoch)
-    fn = os.path.join(output,model,'{}.gpickle'.format(filename))
-    
+    # fn = os.path.join(output,model,'{}.gpickle'.format(filename))
+    fn = os.path.join(output,"{}_fm_{}".format(model,fm),'{}.gpickle'.format(filename))
     if os.path.exists(fn):
         print("{} already exist.".format(fn))
         return 
@@ -55,7 +55,8 @@ def run(model, N, fm, d, ploM, plom, hMM, hmm, epoch, output):
         t1 = "model,N,fm,d,plo_M,plo_m,pli_M,pli_m,EMM,EMm,EmM,Emm,hMM,hmm"
         t2 = ",".join([model, str(N), str(fm), str(d), str(ploM), str(plom), str(pliM.alpha), str(plim.alpha), 
                         str(EMM), str(EMm), str(EmM), str(Emm), str(hMM), str(hmm)])
-        fn = os.path.join(output,model,'{}_netmeta.csv'.format(filename))
+        # fn = os.path.join(output,model,'{}_netmeta.csv'.format(filename))
+        fn = os.path.join(output,"{}_fm_{}".format(model,fm),'{}_netmeta.csv'.format(filename))
         io.save_text("{}\n{}".format(t1,t2), fn)
     except Exception as ex:
         print("2. error at creating the network metadata")
@@ -64,7 +65,8 @@ def run(model, N, fm, d, ploM, plom, hMM, hmm, epoch, output):
     ### Node metadata
     try:
         df = graph.get_node_metadata_as_dataframe(g)
-        fn = os.path.join(output,model,'{}.csv'.format(filename))
+        # fn = os.path.join(output,model,'{}.csv'.format(filename))
+        fn = os.path.join(output,"{}_fm_{}".format(model,fm),'{}.csv'.format(filename))
         io.save_csv(df, fn)
     except Exception as ex:
         print("3. error at creating the node metadata")
@@ -125,5 +127,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     start_time = time.time()
-    run(args.model, args.N, args.fm, args.d, args.ploM, args.plom, args.hMM, args.hmm, args.epoch, args.output)
+    import numpy as np
+    for hMM in np.arange(0.0, 1.1, 0.1):
+       for hmm in np.arange(0.0,1.1,0.1):
+           hMM, hmm = np.round(hMM, 2), np.round(hmm, 2)
+           run(args.model, args.N, args.fm, args.d, args.ploM, args.plom, hMM, hmm, args.epoch, args.output)
+   
+    # run(args.model, args.N, args.fm, args.d, args.ploM, args.plom, args.hMM, args.hmm, args.epoch, args.output)
     print("--- %s seconds ---" % (time.time() - start_time))
