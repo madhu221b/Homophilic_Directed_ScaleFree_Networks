@@ -30,18 +30,18 @@ class Walker(object):
             parallel_generate_walks = self.fair_local_generate_walk
         
         walk_results = Parallel(n_jobs=self.workers)(
-            delayed(parallel_generate_walks)(graph, d_graph, idx)
+            delayed(parallel_generate_walks)(graph, d_graph, idx, len(num_walks))
                                         for idx, num_walks
             in enumerate(num_walks_lists, 1))
 
         walks = flatten(walk_results)
         self.walks = walks
 
-    def local_generate_walk(self, graph, d_graph, cpu_num):
+    def local_generate_walk(self, graph, d_graph, cpu_num, num_walks):
         walks = list()
-        pbar = tqdm(total=self.num_walks, desc='Generating walks (CPU: {})'.format(cpu_num))
+        pbar = tqdm(total=num_walks, desc='Generating walks (CPU: {})'.format(cpu_num))
 
-        for n_walk in range(self.num_walks):
+        for n_walk in range(num_walks):
   
             pbar.update(1)
 
@@ -67,11 +67,11 @@ class Walker(object):
         pbar.close()
         return walks
 
-    def fair_local_generate_walk(self, graph, d_graph, cpu_num):
+    def fair_local_generate_walk(self, graph, d_graph, cpu_num, num_walks):
         walks = list()
-        pbar = tqdm(total=self.num_walks, desc='[Fair local] Generating walks (CPU: {})'.format(cpu_num))
+        pbar = tqdm(total=num_walks, desc='[Fair local] Generating walks (CPU: {})'.format(cpu_num))
 
-        for n_walk in range(self.num_walks):
+        for n_walk in range(num_walks):
   
             pbar.update(1)
 
