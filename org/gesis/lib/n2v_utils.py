@@ -66,7 +66,7 @@ def recommender_model_walker(G,t=0,path="",model="n2v",extra_params=dict(),num_c
     return model, emb_df
 
 
-def recommender_model(G,t=0,path="",model="n2v",p=1,q=1,num_cores=8, is_walk_viz=True):
+def recommender_model(G,t=0,path="",model="n2v",p=1,q=1,num_cores=8, is_walk_viz=False):
     if model == "n2v":
        print("[N2V] Using p value: {}, Using q value : {}".format(p,q))
        node2vec = Node2Vec(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,p=p,q=q)
