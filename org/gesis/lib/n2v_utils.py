@@ -18,6 +18,7 @@ from walkers.indegreewalker import InDegreeWalker
 from walkers.commonnghaware import CommonNeighborWalker
 from walkers.levywalker import LevyWalker
 from walkers.fairindegreewalker import FairInDegreeWalker
+from walkers.indegreevarybetawalker import InDegreeVaryBetaWalker
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
 WALK_LEN = 10
@@ -27,6 +28,7 @@ walker_dict = {
   "degree" : DegreeWalker,
   "indegree": InDegreeWalker,
   "fairindegree": FairInDegreeWalker, 
+  "indegreevarybeta" : InDegreeVaryBetaWalker,
   "commonngh": CommonNeighborWalker,
   "levy": LevyWalker
 
