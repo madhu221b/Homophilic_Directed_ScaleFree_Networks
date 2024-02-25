@@ -19,7 +19,7 @@ from joblib import delayed
 from joblib import Parallel
 from collections import Counter
 
-EPOCHS = 2
+EPOCHS = 30
 N = 1000
 YM, Ym = 2.5, 2.5
 d = 0.03
