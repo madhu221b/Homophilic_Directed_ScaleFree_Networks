@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-
+from sklearn.metrics import precision_score, recall_score
 
 def get_label(num):
     if num == 0: return "M"
@@ -65,3 +65,19 @@ def get_train_test_graph(g, seed):
     labels = np.zeros(len(edges))
     labels[:len(pos_edge_list)] = 1
     return g, edges, labels
+
+
+def get_model_metrics(g,test_edges,y_true):
+    """
+    Computes Precision & Recall
+    - Precision: Quantifies the number of correct positive predictions made.
+       Ratio of correctly predicted positive examples divided by the total number of positive examples that were predicted.
+     
+    - Recall: Calculated as the number of true positives divided by the total number of true positives and false negatives. 
+
+    
+    """
+    y_pred = [int(g.has_edge(u,v)) for u,v in test_edges]
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    return precision, recall

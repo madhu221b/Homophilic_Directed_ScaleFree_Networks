@@ -4,6 +4,7 @@ import networkx as nx
 from tqdm import tqdm
 import random
 import time
+import pickle as pkl
 import argparse
 from fast_pagerank import pagerank_power
 
@@ -13,7 +14,7 @@ from org.gesis.lib.graph import get_node_metadata_as_dataframe
 from org.gesis.lib.io import save_csv
 from org.gesis.lib.graph import get_circle_of_trust_per_node
 from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model_walker, get_top_recos
-from org.gesis.lib.model_utils import get_train_test_graph
+from org.gesis.lib.model_utils import get_train_test_graph, get_model_metrics
 from joblib import delayed
 from joblib import Parallel
 from collections import Counter
@@ -56,12 +57,12 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
         return g
 
 
-def run(hMM, hmm,model,fm,seed,extra_params):
+def run(hMM, hmm,model,fm,main_seed,extra_params):
     try:  
         # Setting seed
-        np.random.seed(seed)
-        random.seed(seed)
-        folder_path = "../Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}".format(model,fm,seed)
+        np.random.seed(main_seed)
+        random.seed(main_seed)
+        folder_path = "../Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}".format(model,fm,main_seed)
         new_filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
         new_path = os.path.join(folder_path, new_filename) 
         if os.path.exists(new_path) and False: # disabling this condition
@@ -79,33 +80,36 @@ def run(hMM, hmm,model,fm,seed,extra_params):
         nx.set_node_attributes(g, node2group, 'group')
         
         # Sample testing edges & create training instance g object
-        g_train, test_edges, true_labels = get_train_test_graph(g.copy(), seed)
+        print("Total edges in the graph: ", g.number_of_edges())
+        g_train, test_edges, true_labels = get_train_test_graph(g.copy(), main_seed)
         g = g_train 
-       
+        print("Total edges after sampling: ", g.number_of_edges())
         iterable = tqdm(range(EPOCHS), desc='Timesteps', leave=True) 
         time = 0
-
+    
         for time in iterable:
-            is_file, g_obj =  is_file_exists(hMM,hmm,model,fm,time)
+            is_file, g_obj =  is_file_exists(hMM,hmm,model,fm,main_seed,time)
             if not is_file:
                 print("File does not exist for time {}, creating now".format(time))
-                seed = seed+time+1 
+                seed = main_seed+time+1 
                 g_updated = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
                 g = g_updated
-                save_metadata(g, hMM, hmm, model,fm,t=time)
+                save_modeldata(g, test_edges, true_labels, hMM, hmm, model,fm,main_seed,t=time)
+                save_metadata(g, hMM, hmm, model,fm,main_seed,t=time)
             else:
                 print("File exists for time {}, loading it... ".format(time))
                 g = g_obj
 
                 if time == EPOCHS-1:
-                    print("Get graph for utility calculation at time: {}", time)
+                    pass
+                    # print("Get graph for utility calculation at time: {}" time)
             
     except Exception as e:
          print("Error in run : ", e)
 
 
-def is_file_exists(hMM, hmm, model,fm,t):
-    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}_fm_{}".format(model,fm)
+def is_file_exists(hMM, hmm, model,fm,seed,t):
+    folder_path = "../Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}".format(model,fm,seed)
     filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm)
     fn = os.path.join(folder_path,'{}_t_{}.gpickle'.format(filename,t))
     if os.path.exists(fn):
@@ -123,8 +127,8 @@ def get_filename(model,N,fm,d,YM,Ym,hMM,hmm):
                                              '-hMM{}'.format(hMM),
                                              '-hmm{}'.format(hmm))
 
-def save_metadata(g, hMM, hmm, model,fm,t=0):
-    folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}_fm_{}".format(model, fm)
+def save_metadata(g, hMM, hmm, model,fm,seed,t=0):
+    folder_path = "../Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}".format(model,fm,seed)
     create_subfolders(folder_path)
     filename = get_filename(model, N, fm, d, YM, Ym, hMM, hmm)
     
@@ -142,7 +146,25 @@ def save_metadata(g, hMM, hmm, model,fm,t=0):
     print("Saving graph and csv file at, ", fn.replace(".gpickle",""))
 
 
+def save_modeldata(g,test_edges, true_labels, hMM, hmm, model,fm,seed,t=0):
+        dict_folder = "./utility/model_{}_fm_{}/seed_{}".format(model,fm,seed)
+        if not os.path.exists(dict_folder): os.makedirs(dict_folder)
+        dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
 
+        precision, recall = get_model_metrics(g,test_edges,true_labels)
+        print("Recall: {}, Precision: {} for hMM:{}, hmm:{} for T={}".format(recall, precision, hMM, hmm,t))
+        if not os.path.exists(dict_file_name):
+            result_dict = dict()
+        else:
+            print("Loading pkl file: ", dict_file_name)
+            with open(dict_file_name, 'rb') as f:                
+                 result_dict = pkl.load(f)
+        
+        result_dict[t] = {"precision":precision, "recall":recall}
+           
+        with open(dict_file_name, 'wb') as f:                
+            pkl.dump(result_dict,f)
+               
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
@@ -167,12 +189,12 @@ if __name__ == "__main__":
     else:
        model =  "{}_beta_{}".format(args.model,args.beta)
        extra_params = {"beta":args.beta}
-    run(args.hMM, args.hmm, model=model, fm=args.fm, seed=args.seed,extra_params=extra_params)
+    run(args.hMM, args.hmm, model=model, fm=args.fm, main_seed=args.seed,extra_params=extra_params)
 
     start_idx, end_idx = args.start, args.end
     print("STARTING IDX", start_idx, ", END IDX", end_idx)
     # num_cores = 36
-    # [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, fm=args.fm,seed=args.seed,extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
+    # [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, fm=args.fm,main_seed=args.seed,extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
 
 
     print("--- %s seconds ---" % (time.time() - start_time))
