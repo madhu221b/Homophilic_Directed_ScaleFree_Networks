@@ -144,7 +144,7 @@ def get_for_all_combinations():
     fig, ax = plt.subplots( nrows=1, ncols=1 ) 
 
     colors = ["#81B622","#D8A7B1","#38A055","#756AB6","r","b"]
-    model_list = ["degree_beta_2.0", "indegree_beta_2.0","commonngh","n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0"]
+    model_list = ["degree_beta_2.0", "indegree_beta_2.0_fm_0.3","commonngh","n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0"]
     style = ["solid","solid"]
     for i, model in enumerate(model_list):
         path = "./{}".format(model)
@@ -552,8 +552,117 @@ def plot_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","M->M"])
     ax.set_yticks([min_value, mid_value, max_value])
     ax.set_xticks([min_value, mid_value, max_value])
     ax.invert_yaxis()
-    fig.savefig('plots/scatter_hMM_{}_hmm_{}.pdf'.format(hMM,hmm),bbox_inches='tight')   # save the figure to file
+    fig.savefig('plots/scatter_{}_hMM_{}_hmm_{}.pdf'.format(model,hMM,hmm),bbox_inches='tight')   # save the figure to file
     plt.close(fig)    # close the figure window
+
+
+def standardize(x):
+    return (x - np.mean(x)) / np.std(x)
+
+def plot_degree_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","M->M"]):
+    # fig, ax = plt.subplots() 
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    edge_dict = {key:[] for key in edge_types}
+    if "M->M" in edge_types:
+        colors = ["#2EC83D", "#3F6A43"]
+    else:
+        colors = ["#24D8D8", "#058181"]
+    if model.startswith("indegree"):
+        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
+    else:
+        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}.gpickle".format(model,model,hMM,hmm)
+    
+    g = nx.read_gpickle(path)
+    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+    nx.set_node_attributes(g, node2group, 'group')
+    node_attr = nx.get_node_attributes(g, "group")
+    
+    # edges = []
+    for u, v in g.edges():
+        edge_label = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
+        # if edge_label == edge_type:
+        # edges.append([u,v])
+        if edge_label in edge_types:
+           edge_dict[edge_label].append([u,v])
+    
+    in_degree_dict =  dict(g.in_degree())
+    out_degree_dict = dict(g.out_degree())
+    all_values =  list(in_degree_dict.values()) + list(out_degree_dict.values())
+    # all_values = standardize(np.array(all_values))
+    max_value, min_value = max(all_values), min(all_values)
+ 
+    i = 0
+    zs = [1, 2]
+    zs_labels = []
+    for key, value in edge_dict.items():
+        source_bet, dest_bet = [], []
+        for source, dest in value:
+            source_bet.append(out_degree_dict[source])
+            dest_bet.append(in_degree_dict[dest])
+    
+        # ax.scatter(source_bet, dest_bet, marker = "o",color=colors[i],label=key)
+        ax.scatter3D(source_bet, dest_bet, zs[i], marker = "o",color=colors[i])
+        zs_labels.append(key)
+        i+=1 
+    
+    ax.set_xlabel("Out Degree Source Node")
+    ax.set_ylabel("In Degree Destination Node", labelpad=10)
+    ax.set_zticks(zs)
+    ax.set_zticklabels(zs_labels)
+    
+    ax.set_yticks([min_value,  max_value])
+    ax.set_xticks([min_value, max_value])
+    ax.invert_yaxis()
+    fig.savefig('plots/scatter_degree_{}_hMM_{}_hmm_{}.png'.format(model,hMM,hmm),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
+
+
+def utility_visualization():
+    """
+    time vs precision & recall
+    """
+    homo_configs = ["0.2,0.8", "0.8,0.2"]
+    colors = {"0.2,0.8":"#38A055", "0.8,0.2":"#756AB6"}
+    linestyles = ["solid", "dashed"]
+    
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+
+    for config in homo_configs:
+        hMM, hmm = config.split(",")
+        dict_path = "../Homophilic_Directed_ScaleFree_Networks/utility/model_indegree_beta_2.0_fm_0.3/seed_42/_hMM{}_hmm{}.pkl".format(hMM,hmm)
+        with open(dict_path,"rb") as f:
+              result_dict = pkl.load(f)
+
+        result_dict = dict(sorted(result_dict.items()))
+        x_vals = result_dict.keys()
+        y_vals_1 = [value["recall"] for _, value in result_dict.items()]
+        y_vals_2 =  [value["precision"] for _, value in result_dict.items()]
+
+        lns1 = ax1.plot(x_vals, y_vals_1, marker="o", color=colors[config], label="Recall", linestyle=linestyles[0])
+        lns2 = ax2.plot(x_vals, y_vals_2, marker="o", color=colors[config], label="Precision", linestyle=linestyles[1])
+        lns = lns1+lns2
+        labs = [l.get_label() for l in lns]
+    
+
+    #dummy lines with NO entries, just to create the black style legend
+    dummy_lines = []
+    for linestyle in linestyles:
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines],["hMM:{}, hmm:{}".format(*config.split(",")) for config in homo_configs],bbox_to_anchor=(0.8,0.1))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],["Recall", "Precision"], loc=4)
+    # axes.add_artist(legend1) . 
+    #     ax1.legend(lns, labs, loc=0)
+    ax1.set_xlabel("Timesteps")
+    ax1.set_ylabel("Recall")
+    ax2.set_ylabel("Precision") 
+    
+
+    fig.savefig('utility_trial.png',bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -562,21 +671,23 @@ if __name__ == "__main__":
     # "0.2,0.2", "0.8,0.8", "0.2,0.8", "0.8,0.2"
     # get_line_plot_t_vs_frac_bet(path, ["0.2,0.8", "0.8,0.2"], model)
     # get_for_all_combinations("indegree_beta", [-1.0,0.0,1.0,2.0,5.0,10.0])
-   # get_for_all_combinations()
-   # get_heatmap_frac(path, "fw")
+    #  get_for_all_combinations()
+    # get_heatmap_frac(path, "fw")
 
-#    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
-#    visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
+    #    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.8-hmm0.2-ID0.gpickle"
+    #    visualize_walk(path,model="fairindegree",extra_params={"beta":2.0})
     # # get_homo_to_edge_dict(model="indegree_beta_2.0")
-   # plot_scatter_edge_link_ratio(model="n2v_p_1.0_q_1.0",display_keys=["maj_outlink","min_outlink"])
+    # plot_scatter_edge_link_ratio(model="n2v_p_1.0_q_1.0",display_keys=["maj_outlink","min_outlink"])
     # get_homo_to_edge_dict(model="indegree_beta_2.0")
-   # plot_scatter_edge_link_ratio(model="indegree_beta_2.0",display_keys=["maj_outlink","min_outlink"])
-   #  plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
+    # plot_scatter_edge_link_ratio(model="indegree_beta_2.0",display_keys=["maj_outlink","min_outlink"])
+    #  plot_diff_scatter_edge_link_ratio("indegree_beta_2.0","n2v_p_1.0_q_1.0", display_keys=["maj_inlink","min_inlink"])
    
-   model = "indegree_beta_2.0"
-  #  model = "n2v_p_1.0_q_1.0"
-   # file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
-   # get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
+    # model = "indegree_beta_2.0"
+    # model = "indegree_beta_2.0"
+    # file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
+    # get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
 
-plot_scatter_plots(model,hMM=0.1, hmm=0.8, edge_types=["M->M", "m->m"])
-# plot_scatter_plots_2_models(model1="indegree_beta_2.0",model2 = "n2v_p_1.0_q_1.0",hMM=1.0, hmm=0.1, edge_types=["m->M","M->m"])
+    # plot_degree_scatter_plots(model,hMM=0.1, hmm=0.8, edge_types=["m->m", "M->M"])
+    # plot_scatter_plots_2_models(model1="indegree_beta_2.0",model2 = "n2v_p_1.0_q_1.0",hMM=1.0, hmm=0.1, edge_types=["m->M","M->m"])
+
+    utility_visualization()
