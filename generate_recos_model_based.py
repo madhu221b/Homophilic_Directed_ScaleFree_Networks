@@ -13,7 +13,7 @@ from org.gesis.lib.io import create_subfolders
 from org.gesis.lib.graph import get_node_metadata_as_dataframe
 from org.gesis.lib.io import save_csv
 from org.gesis.lib.graph import get_circle_of_trust_per_node
-from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model_walker, get_top_recos
+from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model_walker, recommender_model, get_top_recos
 from org.gesis.lib.model_utils import get_train_test_graph, get_model_metrics
 from joblib import delayed
 from joblib import Parallel
@@ -39,7 +39,11 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
         set_seed(seed)
 
         print("Generating Node Embeddings")
-        _, embeds = recommender_model_walker(g,t,path,model=model,extra_params=extra_params)
+        if "fw" in model:
+            p, q = extra_params["p"], extra_params["q"]
+            _, embeds = recommender_model(g,t,path,model="fw",p=p,q=q)
+        else:
+            _, embeds = recommender_model_walker(g,t,path,model=model,extra_params=extra_params)
         print("Getting Link Recommendations from {} Model".format(model))
         u = g.nodes()
         recos = get_top_recos(g,embeds, u) 
@@ -170,6 +174,8 @@ if __name__ == "__main__":
     parser.add_argument("--hMM", help="homophily between Majorities", type=float, default=0.5)
     parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
     parser.add_argument("--model", help="Different Walker Models", type=str)
+    parser.add_argument("--p", help="Return parameter", type=float, default=1.0)
+    parser.add_argument("--q", help="In-out parameter", type=float, default=1.0)
     parser.add_argument("--fm", help="fraction of minorities", type=float, default=0.3)
     parser.add_argument("--beta", help="Beta paramater", type=float, default=1.0)
     parser.add_argument("--alpha", help="Alpha paramater (Levy)", type=float, default=1.0)
@@ -186,15 +192,18 @@ if __name__ == "__main__":
     elif args.model == "levy":
        model =  "{}_alpha_{}".format(args.model,args.alpha)
        extra_params = {"alpha":args.alpha}
+    elif args.model == "fw":
+        model = args.model + "_p_{}_q_{}".format(args.p,args.q)
+        extra_params = {"p":args.p, "q":args.q}
     else:
        model =  "{}_beta_{}".format(args.model,args.beta)
        extra_params = {"beta":args.beta}
-    run(args.hMM, args.hmm, model=model, fm=args.fm, main_seed=args.seed,extra_params=extra_params)
+    # run(args.hMM, args.hmm, model=model, fm=args.fm, main_seed=args.seed,extra_params=extra_params)
 
     start_idx, end_idx = args.start, args.end
     print("STARTING IDX", start_idx, ", END IDX", end_idx)
-    # num_cores = 36
-    # [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, fm=args.fm,main_seed=args.seed,extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
+    num_cores = 36
+    [Parallel(n_jobs=num_cores)(delayed(run)(np.round(hMM,2), np.round(hmm,2), model=model, fm=args.fm,main_seed=args.seed,extra_params=extra_params) for hMM in np.arange(start_idx, end_idx, 0.1) for hmm in np.arange(0.0,1.1,0.1))]
 
 
     print("--- %s seconds ---" % (time.time() - start_time))
