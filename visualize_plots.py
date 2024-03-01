@@ -17,6 +17,17 @@ T = 30
 hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
 
 
+def get_diff_avg_betn(model,g,hMM,hmm):
+    centrality_dict = get_centrality_dict(model,hMM,hmm)
+    minority_centrality = [val for node, val in centrality_dict.items() if g.nodes[node]["m"] == 1]
+    avg_min_val = np.mean(minority_centrality)
+
+    majority_centrality = [val for node, val in centrality_dict.items() if g.nodes[node]["m"] == 0]
+    avg_maj_val = np.mean(majority_centrality)
+    diff_val =  avg_min_val - avg_maj_val
+    return diff_val
+
+
 def get_line_plot_t_vs_frac_bet(path,homophily_list, model):
     fig, ax = plt.subplots( nrows=1, ncols=1 ) 
 
@@ -285,6 +296,16 @@ def get_edge_dict(g):
     result_dict["maj_outlink"] = edge_dict["M->m"]/maj_den
 
     return result_dict
+
+def get_edge_dict_v2(g):
+    key_list=["M->M","m->M","M->m","m->m"]
+    edge_dict = {key:0 for key in key_list}
+    node_attr = nx.get_node_attributes(g, "group")
+
+    for u, v in g.edges():
+        key = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
+        edge_dict[key]+= 1
+    return edge_dict
 
 def get_homo_to_edge_dict(model):
     main_dict = dict()
@@ -569,7 +590,7 @@ def plot_degree_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","
     else:
         colors = ["#24D8D8", "#058181"]
     if model.startswith("indegree"):
-        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
+        path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
     else:
         path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}.gpickle".format(model,model,hMM,hmm)
     
@@ -587,7 +608,7 @@ def plot_degree_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","
            edge_dict[edge_label].append([u,v])
     
     in_degree_dict =  dict(g.in_degree())
-    out_degree_dict = dict(g.out_degree())
+    out_degree_dict = dict(g.in_degree())
     all_values =  list(in_degree_dict.values()) + list(out_degree_dict.values())
     # all_values = standardize(np.array(all_values))
     max_value, min_value = max(all_values), min(all_values)
@@ -606,7 +627,7 @@ def plot_degree_scatter_plots(model,hMM, hmm, edge_types=["M->m","m->M","m->m","
         zs_labels.append(key)
         i+=1 
     
-    ax.set_xlabel("Out Degree Source Node")
+    ax.set_xlabel("In Degree Source Node")
     ax.set_ylabel("In Degree Destination Node", labelpad=10)
     ax.set_zticks(zs)
     ax.set_zticklabels(zs_labels)
@@ -622,16 +643,18 @@ def utility_visualization():
     """
     time vs precision & recall
     """
-    homo_configs = ["0.2,0.8", "0.8,0.2"]
-    colors = {"0.2,0.8":"#38A055", "0.8,0.2":"#756AB6"}
+    homo_configs = ["0.2,0.8"]
+    models = ["model_indegree_beta_2.0_fm_0.3", "model_fw_p_1.0_q_1.0_fm_0.3","model_ingroupdegree_beta_1.0_fm_0.3"]
+    colors = ["#38A055", "#756AB6", "#2EC83D"]
     linestyles = ["solid", "dashed"]
     
     fig, ax1 = plt.subplots(figsize=(8, 8))
     ax2 = ax1.twinx()
 
-    for config in homo_configs:
+    for i, model in enumerate(models):
+        config = homo_configs[0]
         hMM, hmm = config.split(",")
-        dict_path = "../Homophilic_Directed_ScaleFree_Networks/utility/model_indegree_beta_2.0_fm_0.3/seed_42/_hMM{}_hmm{}.pkl".format(hMM,hmm)
+        dict_path = "../Homophilic_Directed_ScaleFree_Networks/utility/{}/seed_42/_hMM{}_hmm{}.pkl".format(model,hMM,hmm)
         with open(dict_path,"rb") as f:
               result_dict = pkl.load(f)
 
@@ -640,11 +663,9 @@ def utility_visualization():
         y_vals_1 = [value["recall"] for _, value in result_dict.items()]
         y_vals_2 =  [value["precision"] for _, value in result_dict.items()]
 
-        lns1 = ax1.plot(x_vals, y_vals_1, marker="o", color=colors[config], label="Recall", linestyle=linestyles[0])
-        lns2 = ax2.plot(x_vals, y_vals_2, marker="o", color=colors[config], label="Precision", linestyle=linestyles[1])
-        lns = lns1+lns2
-        labs = [l.get_label() for l in lns]
-    
+        lns1 = ax1.plot(x_vals, y_vals_1, marker="o", color=colors[i], label="Recall", linestyle=linestyles[0])
+        lns2 = ax2.plot(x_vals, y_vals_2, marker="o", color=colors[i], label="Precision", linestyle=linestyles[1])
+   
 
     #dummy lines with NO entries, just to create the black style legend
     dummy_lines = []
@@ -652,18 +673,317 @@ def utility_visualization():
         dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
 
     lines = ax1.get_lines()
-    ax1.legend([line for line in lines],["hMM:{}, hmm:{}".format(*config.split(",")) for config in homo_configs],bbox_to_anchor=(0.8,0.1))
-    ax2.legend([dummy_line for dummy_line in dummy_lines],["Recall", "Precision"], loc=4)
+    ax1.legend([line for line in lines],["Indegree", "Fairwalk", "Cross In-Degree"],loc='upper center', bbox_to_anchor=(0.5, 1))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],["Recall", "Precision"],loc='upper center', bbox_to_anchor=(0.3, 1))
     # axes.add_artist(legend1) . 
     #     ax1.legend(lns, labs, loc=0)
+    
+
     ax1.set_xlabel("Timesteps")
+    ax1.set_ylim(-0.01,0.25)
+    ax2.set_ylim(-0.01,0.75)
     ax1.set_ylabel("Recall")
     ax2.set_ylabel("Precision") 
     
 
-    fig.savefig('utility_trial.png',bbox_inches='tight')   # save the figure to file
+    fig.savefig('utility_{}.png'.format(config),bbox_inches='tight')   # save the figure to file
     plt.close(fig)  
 
+
+def get_grid_utility(files, metric):
+    grid = np.zeros((len(hmm_list),len(hMM_list)))
+    for dict_path in files:
+        hMM, hmm = dict_path.split("hMM")[-1].split("_")[0], dict_path.split("hmm")[-1].split(".pkl")[0]
+        hMM_idx, hmm_idx = int(float(hMM)*10), int(float(hmm)*10)
+        print("hMM: {}, hmm: {}".format(hMM, hmm))
+        with open(dict_path, 'rb') as f:
+             dict_ = pkl.load(f)
+        grid[hmm_idx][hMM_idx] = dict_[T-1][metric]
+    return grid
+
+def get_heatmap_utility(folder_path,metric=""):  
+
+    plot_directory = "./plots/heatmap/utility"
+    if not os.path.exists(plot_directory): os.makedirs(plot_directory)
+
+    all_files = os.listdir(folder_path)
+    files = [os.path.join(folder_path,file_name) for file_name in all_files]
+    grid = get_grid_utility(files, metric)
+  
+    heatmap = grid.T
+
+    hmm_ticks = [np.round(hmm,2) for hmm in hmm_list]
+    hMM_ticks = [np.round(hMM,2) for hMM in hMM_list]
+    vmin, vmax = np.min(heatmap), np.max(heatmap)
+    print("vmin: ", vmin, "vmax: ", vmax)
+    if metric == "precision":
+        vmin, vmax = 0.1, 0.8
+    elif metric == "recall":
+        vmin, vmax = 0, 0.06
+    cmap = plt.cm.get_cmap('BuGn')
+    ax = sns.heatmap(heatmap, cmap=cmap,xticklabels=hmm_ticks,yticklabels=hMM_ticks,vmin=vmin,vmax=vmax)
+    ax.invert_yaxis()
+    ax.set_xlabel("Homophily for Minority Class")
+    ax.set_ylabel("Homophily for Majority Class")
+    fig = ax.get_figure()
+    model = "fw" if "fw" in folder_path else "ind"
+    fig.savefig(plot_directory+"/{}_{}.png".format(metric,model))
+
+def get_edge_info(model, hMM, hmm):
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    # mention for what timesteps you are looking for edge ratios
+    T = [0,29]
+
+    # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
+    file_path = main_directory + "DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+    g = nx.read_gpickle(file_path)
+    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+    nx.set_node_attributes(g, node2group, 'group')
+    edge_dict_1 = get_edge_dict(g)
+    # edge_dict = get_edge_dict_v2(g)
+    # sum_ = sum(edge_dict.values())
+    # edge_dict_1 = {k:np.round((v/sum_)*100.0,2) for k,v in edge_dict.items()}
+    # print('edge_dict_1: ', edge_dict_1)
+
+    file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[1])
+    g = nx.read_gpickle(file_path)
+    edge_dict_2 = get_edge_dict(g)
+    # edge_dict = get_edge_dict_v2(g)
+    # sum_ = sum(edge_dict.values())
+    # edge_dict_2 = {k:np.round((v/sum_)*100.0,2) for k,v in edge_dict.items()}
+    print('edge_dict_2: ', edge_dict_2)
+
+    sub_dict = {k:np.round((v-edge_dict_1[k]),2) for k,v in edge_dict_2.items()}
+    print(sub_dict)
+
+def plot_hmm_vs_avgminbetn_edgelink(model, hMM, hmm):
+    """
+    
+    # edge_dict = get_edge_dict_v2(g)
+    # sum_ = sum(edge_dict.values())
+    # edge_dict_1 = {k:np.round((v/sum_)*100.0,2) for k,v in edge_dict.items()}
+    # print('edge_dict_1: ', edge_dict_1)
+
+    # edge_dict = get_edge_dict_v2(g)
+    # sum_ = sum(edge_dict.values())
+    # edge_dict_2 = {k:np.round((v/sum_)*100.0,2) for k,v in edge_dict.items()}
+    print('edge_dict_2: ', edge_dict_2)
+
+    """
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    # mention for what timesteps you are looking for edge ratios
+    T = [0,29]
+
+    # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
+    linestyles = {'maj_inlink': "solid", 'min_inlink': "dashed", 'min_outlink':"dotted", 'maj_outlink':"dashdot"}
+    colors = ["#38A055", "#756AB6"]
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+    
+    # hMM = 1.0
+    hmm = 1.0
+    models = [model,"fw_p_1.0_q_1.0"]
+    for i, model in enumerate(models):
+     
+        plot_dict = dict()
+        diff_dict = dict()
+        # for hmm in hmm_list:
+        #     hmm = np.round(hmm,2)
+        for hMM in hMM_list:
+            hMM = np.round(hMM,2)
+            file_path = main_directory + "DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+            g = nx.read_gpickle(file_path)
+            node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+            nx.set_node_attributes(g, node2group, 'group')
+            diff_1 = get_diff_avg_betn("DPAH_fm_0.3",g,hMM,hmm)
+            edge_dict_1 = get_edge_dict(g)
+        
+            file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[1])
+            g = nx.read_gpickle(file_path)
+            edge_dict_2 = get_edge_dict(g)
+            
+            model_bet = model+"_fm_0.3"
+            diff_2 = get_diff_avg_betn(model_bet,g,hMM,hmm)
+            # diff_dict[hmm] = diff_2 
+            diff_dict[hMM] = diff_2 
+
+            for k,v in edge_dict_2.items():
+                if k not in plot_dict:
+                    plot_dict[k] = dict()
+                sub = np.round((v-edge_dict_1[k]),2)
+                # plot_dict[k][hmm] = sub
+                plot_dict[k][hMM] = sub
+            
+
+            
+        print("plot dict: ", plot_dict)
+        ax1.plot(diff_dict.keys(), diff_dict.values(), marker=">",label=model,color=colors[i])
+        for edge_link, sub_dict in plot_dict.items():    
+             x_vals = sub_dict.keys()
+             y_vals = sub_dict.values()
+             if edge_link == "maj_inlink" or edge_link == "min_inlink": x_vals, y_vals = [],[]
+             ax2.plot(x_vals,y_vals,linestyle=linestyles[edge_link],marker="o",label=edge_link,color=colors[i])           
+        
+
+    dummy_lines = []
+    for linestyle in linestyles.values():
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines],models,loc='upper center', bbox_to_anchor=(0.5, 1))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],list(linestyles.keys()),loc='upper center', bbox_to_anchor=(0.3, 1))
+    # axes.add_artist(legend1) . 
+    #     ax1.legend(lns, labs, loc=0)
+    
+
+    ax1.set_xlabel("hmm for Fixed hMM: {}".format(hMM))
+    # ax1.set_ylim(-0.01,0.25)
+    # ax2.set_ylim(-0.01,0.75)
+    ax1.set_ylabel("avg(m) - avg(M) betn centrality")
+    ax2.set_ylabel("Delta Edge Link Ratio") 
+    
+
+    fig.savefig('trial.png',bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
+
+def get_in_avg(g, deg="min"):
+    in_degree_dict =  dict(g.in_degree())
+    node_attr = nx.get_node_attributes(g, "group")
+    
+    if deg=="min":
+        res =  np.mean(np.array([val for node, val in in_degree_dict.items() if get_label(node_attr[node]) == "m"]))
+        return res
+    elif deg=="maj":
+        res =  np.mean(np.array([val for node, val in in_degree_dict.items() if get_label(node_attr[node]) == "M"]))
+        return res
+
+
+def plot_hmm_vs_avgdegree(model, hMM, hmm):
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    # mention for what timesteps you are looking for edge ratios
+
+    # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
+    # linestyles = {'avg_min': "solid", 'avg_maj: "dashed"}
+    linestyles = ["solid", "dashed"]
+    colors = ["#38A055", "#756AB6"]
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+    
+    hMM = 1.0
+    # hmm = 1.0
+    models = [model,"fw_p_1.0_q_1.0"]
+    for i, model in enumerate(models):
+     
+        avg_dict = dict()
+        betn_dict = dict()
+        for hmm in hmm_list:
+            hmm = np.round(hmm,2)
+       
+            file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
+            g = nx.read_gpickle(file_path)
+
+            min_deg = get_in_avg(g,deg="min")
+            maj_deg = get_in_avg(g, deg="maj")
+            if hmm not in avg_dict: avg_dict[hmm] = dict()
+            
+            model_bet = model+"_fm_0.3"
+            betn = get_diff_avg_betn(model_bet,g,hMM,hmm)
+
+            # avg_dict[hmm]["min"] = min_deg
+            avg_dict[hmm]["min"] = min_deg - maj_deg
+            betn_dict[hmm] = betn
+    
+        ax1.plot(betn_dict.keys(),betn_dict.values(), marker="o",label=model,color=colors[i],linestyle=linestyles[0])
+        avg_deg = np.array([_["min"] for _ in avg_dict.values()])
+        # avg_deg_2 = 2*(avg_deg  - min(avg_deg )) / ( max(avg_deg ) - min(avg_deg )) - 1
+        avg_deg_2 = avg_deg
+        print(max(avg_deg_2), min(avg_deg_2))
+        ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
+
+
+    dummy_lines = []
+    for linestyle in linestyles:
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines],models,loc='upper center', bbox_to_anchor=(0.7, 0.1))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],["avg(m) - avg(M) bet centrality ", "avg(m) - avg(M) in-degree"],loc='upper center', bbox_to_anchor=(0.3, 0.1))
+    # axes.add_artist(legend1) . 
+    #     ax1.legend(lns, labs, loc=0)
+    
+
+    ax1.set_xlabel("Varying hmm for Fixed hMM: {}".format(hMM))
+    ax1.set_ylim(-0.004,0.004)
+    ax2.set_ylim(-40,40)
+    ax1.set_ylabel("avg(m)-avg(M) betn centrality")
+    ax2.set_ylabel("avg(m) - avg(M) in-degree") 
+    
+
+    fig.savefig('trial.png',bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
+
+def plot_hMM_vs_avgdegree(model, hMM, hmm):
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    # mention for what timesteps you are looking for edge ratios
+
+    # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
+    # linestyles = {'avg_min': "solid", 'avg_maj: "dashed"}
+    linestyles = ["solid", "dashed"]
+    colors = ["#38A055", "#756AB6"]
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+    
+    hmm = 1.0
+    models = [model,"fw_p_1.0_q_1.0"]
+    for i, model in enumerate(models):
+     
+        avg_dict = dict()
+        betn_dict = dict()
+        for hMM in hMM_list:
+            hMM = np.round(hMM,2)
+       
+            file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
+            g = nx.read_gpickle(file_path)
+
+            min_deg = get_in_avg(g,deg="min")
+            maj_deg = get_in_avg(g, deg="maj")
+            if hMM not in avg_dict: avg_dict[hMM] = dict()
+            
+            model_bet = model+"_fm_0.3"
+            betn = get_diff_avg_betn(model_bet,g,hMM,hmm)
+
+            # avg_dict[hmm]["min"] = min_deg
+            avg_dict[hMM]["min"] = min_deg - maj_deg
+            betn_dict[hMM] = betn
+    
+        ax1.plot(betn_dict.keys(),betn_dict.values(), marker="o",label=model,color=colors[i],linestyle=linestyles[0])
+        avg_deg = np.array([_["min"] for _ in avg_dict.values()])
+        # avg_deg_2 = 2*(avg_deg  - min(avg_deg )) / ( max(avg_deg ) - min(avg_deg )) - 1
+        avg_deg_2 = avg_deg
+        print(max(avg_deg_2), min(avg_deg_2))
+        ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
+
+
+    dummy_lines = []
+    for linestyle in linestyles:
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines],models,loc='upper center', bbox_to_anchor=(0.7, 0.1))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],["avg(m) - avg(M) bet centrality ", "avg(m) - avg(M) in-degree"],loc='upper center', bbox_to_anchor=(0.3, 0.1))
+    # axes.add_artist(legend1) . 
+    #     ax1.legend(lns, labs, loc=0)
+    
+
+    ax1.set_xlabel("Varying hMM for Fixed hmm: {}".format(hmm))
+    ax1.set_ylim(-0.004,0.004)
+    ax2.set_ylim(-40,40)
+    ax1.set_ylabel("avg(m)-avg(M) betn centrality")
+    ax2.set_ylabel("avg(m) - avg(M) in-degree") 
+    
+
+    fig.savefig('trial.png',bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -686,8 +1006,18 @@ if __name__ == "__main__":
     # model = "indegree_beta_2.0"
     # file_path  = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
     # get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="min_inlink")
-
-    # plot_degree_scatter_plots(model,hMM=0.1, hmm=0.8, edge_types=["m->m", "M->M"])
+    
+    # model = "indegree_beta_2.0"
+    # plot_degree_scatter_plots(model,hMM=0.0, hmm=0.3, edge_types=["M->M","M->m"])
     # plot_scatter_plots_2_models(model1="indegree_beta_2.0",model2 = "n2v_p_1.0_q_1.0",hMM=1.0, hmm=0.1, edge_types=["m->M","M->m"])
 
-    utility_visualization()
+    # utility_visualization()
+    # folder_path = "../Homophilic_Directed_ScaleFree_Networks/utility/model_fw_p_1.0_q_1.0_fm_0.3/seed_42/"
+    # folder_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_indegree_beta_2.0_fm_0.3/seed_42"
+    # get_heatmap_utility(folder_path,metric="recall")
+
+    model = "indegree_beta_2.0"
+    hMM, hmm = 0.0, 0.3
+    # get_edge_info(model, hMM, hmm)
+    plot_hmm_vs_avgdegree(model, hMM, hmm)
+    
