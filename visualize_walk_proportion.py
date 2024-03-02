@@ -51,11 +51,13 @@ def visualize_walk_prop(walks,g):
             if k not in walk_dict[source_node]: walk_dict[source_node][k] = list()
             walk_dict[source_node][k].append(v)
     
+
     print("Percent of m visited when rws start from m: ", sum(walk_dict["m"]["m"])/len(walk_dict["m"]["m"]))
     print("Percent of M visited when rws start from m: ", sum(walk_dict["m"]["M"])/len(walk_dict["m"]["M"]))
     print("~~~~~~~~~~~~~~~")
     print("Percent of m visited when rws start from M: ", sum(walk_dict["M"]["m"])/len(walk_dict["M"]["m"]))
     print("Percent of M visited when rws start from M: ", sum(walk_dict["M"]["M"])/len(walk_dict["M"]["M"]))
+    return walk_dict
 
 def plot_rw(filename,hMM,hmm):
     g = nx.read_gpickle(filename)
@@ -87,7 +89,10 @@ def plot_rw(filename,hMM,hmm):
 if __name__ == "__main__":
     main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
 
-    hMM, hmm = 0.2, 0.0
-    # file_name = main_directory+"fw_p_1.0_q_1.0_fm_0.3/fw_p_1.0_q_1.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
-    file_name = main_directory+"indegree_beta_2.0_fm_0.3/indegree_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
-    plot_rw(file_name,hMM,hmm)
+    hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
+    for hMM in hMM_list:
+        hmm = 0.0
+        hMM = np.round(hMM,2)
+        # file_name = main_directory+"fw_p_1.0_q_1.0_fm_0.3/fw_p_1.0_q_1.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
+        file_name = main_directory+"indegree_beta_2.0_fm_0.3/indegree_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
+        plot_rw(file_name,hMM,hmm)
