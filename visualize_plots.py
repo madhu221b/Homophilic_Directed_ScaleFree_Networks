@@ -297,12 +297,14 @@ def get_edge_dict(g):
 
     return result_dict
 
-def get_edge_dict_v2(g):
+def get_edge_dict_v2(g, edge_list=[]):
     key_list=["M->M","m->M","M->m","m->m"]
     edge_dict = {key:0 for key in key_list}
     node_attr = nx.get_node_attributes(g, "group")
-
-    for u, v in g.edges():
+    
+    if edge_list: itr = edge_list
+    else: itr = g.edges()
+    for u, v in itr:
         key = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))      
         edge_dict[key]+= 1
     return edge_dict
@@ -984,6 +986,65 @@ def plot_hMM_vs_avgdegree(model, hMM, hmm):
 
     fig.savefig('trial.png',bbox_inches='tight')   # save the figure to file
     plt.close(fig)  
+
+
+
+def get_diff_of_rate(hmm):
+    linestyles = ["solid", "dashed"]
+    colors = ["#81B622","#D8A7B1","#38A055","#756AB6"]
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+    ax2.set_axis_off()
+
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    
+    models = ["fw_p_1.0_q_1.0", "indegree_beta_2.0"]
+    
+    for i, model in enumerate(models):
+        res_dict = dict()
+        for hMM in hMM_list:
+            hMM = np.round(hMM,2)
+
+            dpah_file = main_directory + "DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+            g_init = nx.read_gpickle(dpah_file)
+            node2group = {node:g_init.nodes[node]["m"] for node in g_init.nodes()}
+            nx.set_node_attributes(g_init, node2group, 'group')
+            
+        
+
+            file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
+            g_final = nx.read_gpickle(file_path)
+            new_edges = list(set(g_final.edges()) - set(g_init.edges()))
+            edge_dict = get_edge_dict_v2(g_final, new_edges)
+            sum_ = sum(edge_dict.values())
+    
+            for k, v in edge_dict.items():
+                val = np.round((v/sum_)*100.0,2)
+                if k not in res_dict: res_dict[k] = dict()
+                res_dict[k][hMM] = val
+        
+        for j, (k,sub_dict) in enumerate(res_dict.items()):
+            ax1.plot(sub_dict.keys(), sub_dict.values(), marker="o",label=k,color=colors[j],linestyle=linestyles[i])
+     
+
+    dummy_lines = []
+    for linestyle in linestyles:
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+    
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines if line.get_linestyle()=="-"],[line.get_label() for line in lines if line.get_linestyle()=="-"], bbox_to_anchor=(0.3, 1.0))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],models, bbox_to_anchor=(0.7, 1.0))
+    ax1.set_xlabel("Varying hMM for Fixed hmm: {}".format(hmm))
+    ax1.set_ylabel("Percent of new recommendations")
+    ax1.set_ylim(0,100)
+
+    fig.savefig('new_recos_hmm_{}.png'.format(hmm),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
+
+       
+      
+
+
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -1016,8 +1077,12 @@ if __name__ == "__main__":
     # folder_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_indegree_beta_2.0_fm_0.3/seed_42"
     # get_heatmap_utility(folder_path,metric="recall")
 
-    model = "indegree_beta_2.0"
-    hMM, hmm = 0.0, 0.3
+    # model = "indegree_beta_2.0"
+    # hMM, hmm = 0.0, 0.3
     # get_edge_info(model, hMM, hmm)
-    plot_hmm_vs_avgdegree(model, hMM, hmm)
+    # plot_hmm_vs_avgdegree(model, hMM, hmm)
+    
+    model = "indegree_beta_2.0"
+    hmm = 0.0
+    get_diff_of_rate(hmm)
     
