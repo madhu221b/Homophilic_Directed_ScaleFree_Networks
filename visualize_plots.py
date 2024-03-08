@@ -1,6 +1,7 @@
 import os
 import pickle as pkl
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import networkx as nx
 import operator
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 
-from org.gesis.lib.n2v_utils import get_walks
+from org.gesis.lib.n2v_utils import get_walks, get_avg_group_centrality, read_graph, get_centrality_dict
 from generate_heatmap_centrality import get_grid
 
 T = 30
@@ -438,13 +439,13 @@ def get_pearson_betn_centrality_and_edge_link(file_path, model, ratio="maj_outli
     print(r[0][1])
 
 
-def get_centrality_dict(model,hMM,hmm,centrality="betweenness"):
+# def get_centrality_dict(model,hMM,hmm,centrality="betweenness"):
 
-    dict_folder = "./centrality/{}/{}".format(centrality,model)  
-    dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
-    with open(dict_file_name, 'rb') as f:                
-        centrality_dict = pkl.load(f)
-        return centrality_dict
+#     dict_folder = "./centrality/{}/{}".format(centrality,model)  
+#     dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
+#     with open(dict_file_name, 'rb') as f:                
+#         centrality_dict = pkl.load(f)
+#         return centrality_dict
 
 def plot_scatter_plots_2_models(model1,model2,hMM, hmm, edge_types=["M->m","m->M","m->m","M->M"]):
     # fig, ax = plt.subplots() 
@@ -1041,9 +1042,153 @@ def get_diff_of_rate(hmm):
     fig.savefig('new_recos_hmm_{}.png'.format(hmm),bbox_inches='tight')   # save the figure to file
     plt.close(fig)  
 
-       
-      
+  
+def get_diff_of_rate_v2(hMM):
+    linestyles = ["solid", "dashed"]
+    colors = ["#81B622","#D8A7B1","#38A055","#756AB6"]
+    fig, ax1 = plt.subplots(figsize=(8, 8))
+    ax2 = ax1.twinx()
+    ax2.set_axis_off()
 
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    
+    models = ["fw_p_1.0_q_1.0", "indegree_beta_2.0"]
+    
+    for i, model in enumerate(models):
+        res_dict = dict()
+        for hmm in hmm_list:
+            hmm  = np.round(hmm,2)
+
+            dpah_file = main_directory + "DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+            g_init = nx.read_gpickle(dpah_file)
+            node2group = {node:g_init.nodes[node]["m"] for node in g_init.nodes()}
+            nx.set_node_attributes(g_init, node2group, 'group')
+            
+        
+
+            file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
+            g_final = nx.read_gpickle(file_path)
+            new_edges = list(set(g_final.edges()) - set(g_init.edges()))
+            edge_dict = get_edge_dict_v2(g_final, new_edges)
+            sum_ = sum(edge_dict.values())
+    
+            for k, v in edge_dict.items():
+                val = np.round((v/sum_)*100.0,2)
+                if k not in res_dict: res_dict[k] = dict()
+                res_dict[k][hmm] = val
+        
+        for j, (k,sub_dict) in enumerate(res_dict.items()):
+            ax1.plot(sub_dict.keys(), sub_dict.values(), marker="o",label=k,color=colors[j],linestyle=linestyles[i])
+     
+
+    dummy_lines = []
+    for linestyle in linestyles:
+        dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
+    
+    lines = ax1.get_lines()
+    ax1.legend([line for line in lines if line.get_linestyle()=="-"],[line.get_label() for line in lines if line.get_linestyle()=="-"], bbox_to_anchor=(0.3, 1.0))
+    ax2.legend([dummy_line for dummy_line in dummy_lines],models, bbox_to_anchor=(0.7, 1.0))
+    ax1.set_xlabel("Varying hmm for Fixed hMM: {}".format(hMM))
+    ax1.set_ylabel("Percent of new recommendations")
+    ax1.set_ylim(0,100)
+
+    fig.savefig('new_recos_hMM_{}.png'.format(hMM),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)  
+
+
+def get_pair_plot(model,hMM,hmm):
+    """
+   
+    """
+    print("Model: {}, hMM: {}, hmm:{}".format(model,hMM,hmm))
+    result_dict = dict()
+    betn_keys = ["high", "low"]
+    id_groups = ["m","M"]
+    all_possible_keys = list()
+    for bet_key in betn_keys:
+        for id_group in id_groups:
+            all_possible_keys.append(bet_key+id_group)
+    
+    for from_key in all_possible_keys:
+        result_dict[from_key] = dict()
+        for to_key in all_possible_keys:
+            result_dict[from_key][to_key] = 0.0
+
+   
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    dpah_file = main_directory + "DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+    g_init = read_graph(dpah_file)
+    
+
+    file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
+    g_final = read_graph(file_path)
+    node_attr = nx.get_node_attributes(g_final, "group")
+    cent_dict = get_centrality_dict(model,hMM,hmm)
+
+    new_edges = list(set(g_final.edges()) - set(g_init.edges()))
+    for u, v in new_edges:
+        idu, idv = node_attr[u], node_attr[v]
+        betu, betv = cent_dict[u], cent_dict[v]
+        if 0 <= betu < 0.002: labelu = "low"
+        else: labelu = "high"
+
+        if 0 <= betv < 0.002: labelv = "low"
+        else: labelv = "high"
+
+        from_key, to_key = "{}{}".format(labelu, get_label(idu)), "{}{}".format(labelv, get_label(idv))
+        result_dict[from_key][to_key] += 1
+    
+    sum_ = len(new_edges)
+    for from_key, sub_dict in result_dict.items():
+        for to_key, val in sub_dict.items():
+            result_dict[from_key][to_key] = np.round((val/sum_)*100.0,2)
+    
+    print(result_dict)
+    matrix = pd.DataFrame(result_dict)
+    
+    cmap = plt.cm.get_cmap('OrRd')
+    vmin, vmax = 0, 50
+
+    ax = sns.heatmap(matrix,vmin=vmin,vmax=vmax,cmap=cmap,annot=True)
+    ax.invert_yaxis()
+    ax.set_xlabel("From")
+    ax.set_ylabel("To")
+    fig = ax.get_figure()
+    fig.savefig("trial_heatmap_model_{}_hMM_{}_hmm_{}.png".format(model,hMM,hmm),bbox_inches='tight')
+    plt.cla()
+    plt.clf()
+    return matrix
+
+def diff_in_heatmap(model):
+    
+    hMM1,hmm1 = 0.0, 0.3 # positive var
+    # hMM1, hmm1 = 0.7, 0.1 # negative var
+    matrix1 = get_pair_plot(model,hMM1,hmm1)
+
+    hMM2, hmm2 = 0.7, 0.8
+    matrix2 =  get_pair_plot(model,hMM2,hmm2)
+
+    diff_matrix = matrix1 - matrix2
+    vmin, vmax = -50, 50
+
+    cmap = plt.cm.coolwarm
+ 
+    ax = sns.heatmap(diff_matrix,vmin=vmin,vmax=vmax,cmap=cmap,annot=True)
+    ax.invert_yaxis()
+    ax.set_xlabel("From")
+    ax.set_ylabel("To")
+    fig = ax.get_figure()
+    fig.savefig("tria_diff_heatmap_{}.png".format(model),bbox_inches='tight')
+
+
+def print_centrality(file_name):
+    g = nx.read_gpickle(file_name)
+
+    avg_min = get_avg_group_centrality(g, group=1)
+    avg_maj = get_avg_group_centrality(g, group=0)
+    diff = avg_min - avg_maj
+    print("Diff: ", diff)
+    return diff
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -1082,7 +1227,20 @@ if __name__ == "__main__":
     # get_edge_info(model, hMM, hmm)
     # plot_hmm_vs_avgdegree(model, hMM, hmm)
     
-    model = "indegree_beta_2.0"
-    hmm = 0.0
-    get_diff_of_rate(hmm)
+    # model = "indegree_beta_2.0"
+
+    # hMM = 1.0
+    # get_diff_of_rate_v2(hMM)
+     
+    #  hmm = 0.0
+    #  get_diff_of_rate(hmm)
     
+    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.0-hmm0.0-ID0.gpickle"
+    # diff = print_centrality(file_name)
+    
+    model = "indegree_beta_2.0"
+    # model = "fw_p_1.0_q_1.0"
+    # hMM, hmm = 0.6, 1.0
+    # get_pair_plot(model,hMM,hmm)
+    
+    diff_in_heatmap(model)
