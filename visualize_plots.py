@@ -5,10 +5,17 @@ import pandas as pd
 import seaborn as sns
 import networkx as nx
 import operator
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
+# import matplotlib
+# matplotlib.use('Agg')
+import matplotlib as mpl
+if os.environ.get('DISPLAY','') == '':
+    print('no display found. Using non-interactive Agg backend')
+    os.environ.__setitem__('DISPLAY', ':0.0')
+    mpl.use('Agg')
+
+import matplotlib.pyplot as plt
+# import nx_pydot
 
 
 from org.gesis.lib.n2v_utils import get_walks, get_avg_group_centrality, read_graph, get_centrality_dict
@@ -19,7 +26,7 @@ hMM_list, hmm_list = np.arange(0,1.1,0.1), np.arange(0,1.1,0.1)
 
 
 def get_diff_avg_betn(model,g,hMM,hmm):
-    centrality_dict = get_centrality_dict(model,hMM,hmm)
+    centrality_dict = get_centrality_dict(model,g,hMM,hmm)
     minority_centrality = [val for node, val in centrality_dict.items() if g.nodes[node]["m"] == 1]
     avg_min_val = np.mean(minority_centrality)
 
@@ -868,18 +875,19 @@ def plot_hmm_vs_avgdegree(model, hMM, hmm):
     # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
     # linestyles = {'avg_min': "solid", 'avg_maj: "dashed"}
     linestyles = ["solid", "dashed"]
-    colors = ["#38A055", "#756AB6"]
+    colors = ["#38A055", "#756AB6","#81B622","#D8A7B1","#D37676"]
     fig, ax1 = plt.subplots(figsize=(8, 8))
     ax2 = ax1.twinx()
     
-    hMM = 1.0
+    hMM =1.0
     # hmm = 1.0
-    models = [model,"fw_p_1.0_q_1.0"]
+    models = [model,"fw_p_1.0_q_1.0","highlowindegree_alpha_0.5","highlowindegree_alpha_0.2","highlowindegree_alpha_0.7"]
     for i, model in enumerate(models):
      
         avg_dict = dict()
         betn_dict = dict()
         for hmm in hmm_list:
+            print(hmm, model)
             hmm = np.round(hmm,2)
        
             file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,29)
@@ -899,9 +907,8 @@ def plot_hmm_vs_avgdegree(model, hMM, hmm):
         ax1.plot(betn_dict.keys(),betn_dict.values(), marker="o",label=model,color=colors[i],linestyle=linestyles[0])
         avg_deg = np.array([_["min"] for _ in avg_dict.values()])
         # avg_deg_2 = 2*(avg_deg  - min(avg_deg )) / ( max(avg_deg ) - min(avg_deg )) - 1
-        avg_deg_2 = avg_deg
-        print(max(avg_deg_2), min(avg_deg_2))
-        ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
+        avg_deg_2 = avg_deg        
+        # ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
 
 
     dummy_lines = []
@@ -932,12 +939,12 @@ def plot_hMM_vs_avgdegree(model, hMM, hmm):
     # file_path = main_directory+"{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_{}.gpickle".format(model,model,hMM,hmm,T[0])
     # linestyles = {'avg_min': "solid", 'avg_maj: "dashed"}
     linestyles = ["solid", "dashed"]
-    colors = ["#38A055", "#756AB6"]
+    colors = ["#38A055", "#756AB6","#81B622","#D8A7B1","#D37676"]
     fig, ax1 = plt.subplots(figsize=(8, 8))
     ax2 = ax1.twinx()
     
-    hmm = 1.0
-    models = [model,"fw_p_1.0_q_1.0"]
+    hmm = 0.0
+    models = [model,"fw_p_1.0_q_1.0","highlowindegree_alpha_0.5","highlowindegree_alpha_0.2","highlowindegree_alpha_0.7"]
     for i, model in enumerate(models):
      
         avg_dict = dict()
@@ -963,8 +970,8 @@ def plot_hMM_vs_avgdegree(model, hMM, hmm):
         avg_deg = np.array([_["min"] for _ in avg_dict.values()])
         # avg_deg_2 = 2*(avg_deg  - min(avg_deg )) / ( max(avg_deg ) - min(avg_deg )) - 1
         avg_deg_2 = avg_deg
-        print(max(avg_deg_2), min(avg_deg_2))
-        ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
+  
+        # ax2.plot(avg_dict.keys(),avg_deg_2, marker="o",label=model,color=colors[i],linestyle=linestyles[1])
 
 
     dummy_lines = []
@@ -1190,6 +1197,73 @@ def print_centrality(file_name):
     print("Diff: ", diff)
     return diff
 
+
+def count_edges(walks):
+    count_dict = dict()
+    topk = 10
+
+    for walk in walks:
+        walk = [int(_) for _ in walk]
+        if len(walk) == 1: continue
+        edges = [(walk[i],walk[i+1]) for i, _ in enumerate(walk[:-1])]
+        for edge in edges:
+            if edge not in count_dict: count_dict[edge] = 0
+            count_dict[edge] += 1
+    sum_ = sum(count_dict.values())
+    count_dict = {k:np.round((v/sum_)*10,2) for k,v in count_dict.items()}
+    count_dict = dict(sorted(count_dict.items(), key=lambda item: item[1], reverse=True))
+    keys = list(count_dict.keys())[:topk]
+    count_dict = {k:i+1 for i,k in enumerate(keys)}
+    return count_dict
+
+def visualize_rw_in_walk(file_name, model,hMM,hmm, extra_params=dict()):
+
+    np.random.seed(42)
+    edgecolor = '#c8cacc'
+    node_size = 70   
+    arrow_size = 6           # size of edge arrow (viz)
+    edge_width = 0.5  
+    scale_degree_size = 4000
+    colors = {'min':'#ec8b67', 'maj':'#6aa8cb'}
+    
+    fig, ax = plt.subplots(1,1, figsize=(7,7))
+    main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
+    graph_file = os.path.join(main_directory, file_name)
+    g = read_graph(graph_file)
+    walks = get_walks(g, model=model, extra_params=extra_params)
+    walk_dict = count_edges(walks)
+    from_min_edges = {(u,v):w for (u,v),w in walk_dict.items() if g.nodes[u]["m"] == 1}
+    from_maj_edges = {(u,v):w for (u,v),w in walk_dict.items() if g.nodes[u]["m"] == 0}
+    
+
+    
+    # pos = nx_pydot.graphviz_layout(g, prog='neato')
+    pos = nx.spring_layout(g, k=0.5, iterations=20)
+    node_color = [colors['min'] if obj['m'] else colors['maj'] for n,obj in g.nodes(data=True)]
+    node2betn = nx.betweenness_centrality(g, normalized=True)
+    node_dict = [node2betn[node] * scale_degree_size + 15 for node in g.nodes()]
+    nx.draw_networkx_nodes(g, pos,  node_color=node_color, node_size=node_dict, ax=ax)
+    edge_color = [edgecolor for e in g.edges()]
+    # nx.draw_networkx_edges(g, pos, edgelist=g.edges(), edge_color=edgecolor, width=edge_width, arrows=True, arrowsize=arrow_size, ax=ax)
+    
+    edges = from_min_edges.keys()
+    width =  list(from_min_edges.values())
+    edge_colors = ["blue" for e in edges]
+    nx.draw_networkx_edges(g, arrows=True, 
+                           edgelist=edges, 
+                           edge_color=edge_colors, pos=pos, ax=ax,alpha=0.9)
+    
+    edges = from_maj_edges.keys()
+    width =  list(from_maj_edges.values())
+    edge_colors = ["blue" for e in edges]
+    nx.draw_networkx_edges(g, arrows=True,
+                           edgelist=edges, 
+                           edge_color=edge_colors, pos=pos, ax=ax,alpha=0.9)
+
+    nx.draw_networkx_edge_labels(g, pos, edge_labels=walk_dict,label_pos=0.6)
+    img_filename = "trial_{}_hMM{}_hmm{}.png".format(model,hMM,hmm)
+    if "alpha" in extra_params.keys(): img_filename = "trial_{}_hMM{}_hmm{}_alpha{}.png".format(model,hMM,hmm,extra_params["alpha"])
+    fig.savefig(img_filename, bbox_inches='tight')
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -1225,7 +1299,7 @@ if __name__ == "__main__":
     # model = "indegree_beta_2.0"
     # hMM, hmm = 0.0, 0.3
     # get_edge_info(model, hMM, hmm)
-    # plot_hmm_vs_avgdegree(model, hMM, hmm)
+    # plot_hMM_vs_avgdegree(model, hMM, hmm)
     
     # model = "indegree_beta_2.0"
 
@@ -1238,9 +1312,23 @@ if __name__ == "__main__":
     # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.0-hmm0.0-ID0.gpickle"
     # diff = print_centrality(file_name)
     
-    model = "indegree_beta_2.0"
+    # model = "indegree_beta_2.0"
+    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_trial/DPAH-N20-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.2-hmm0.8-ID0.gpickle"
     # model = "fw_p_1.0_q_1.0"
     # hMM, hmm = 0.6, 1.0
     # get_pair_plot(model,hMM,hmm)
     
-    diff_in_heatmap(model)
+    # diff_in_heatmap(model)
+    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_trial/DPAH-N30-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.2-hmm0.8-ID0.gpickle"
+    
+    # model, extra_params = "fw", {"p":1.0,"q":1.0}
+    # model, extra_params = "indegree", {"beta":2.0}
+    # model, extra_params = "highlowindegree", {"alpha":0.5}
+    
+    model, extra_params = "nonlocalindegree", {"alpha":1.0, "beta":2.0}
+    hMM, hmm = 0.8, 0.2 
+    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_trial/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/nonlocalindegree_alpha_1.0_beta_2.0_fm_0.3/nonlocalindegree_alpha_1.0_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_0.gpickle".format(hMM,hmm)
+    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/indegree_beta_2.0_fm_0.3_impbaseline/indegree_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
+    visualize_rw_in_walk(path,model,hMM,hmm,extra_params)
+

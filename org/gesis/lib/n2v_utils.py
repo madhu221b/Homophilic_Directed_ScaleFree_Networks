@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import pickle as pkl
+# import pickle5 as pkl
 import networkx as nx
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -17,9 +18,12 @@ from walkers.degreewalker import DegreeWalker
 from walkers.indegreewalker import InDegreeWalker
 from walkers.commonnghaware import CommonNeighborWalker
 from walkers.levywalker import LevyWalker
-from walkers.fairindegreewalker import FairInDegreeWalker
+from walkers.fairindegreewalker import FairInDegreeWalker # this is indegree with rnd group choice 
 from walkers.indegreevarybetawalker import InDegreeVaryBetaWalker
 from walkers.ingroupdegreewalker import InGroupDegreeWalker
+from walkers.highlowindegreewalker import HighLowInDegreeWalker
+from walkers.nonlocalindegreewalker import NonLocalInDegreeWalker
+from fairdegreewalk.fairdegreewalk import FairDegreeWalk # this is incorporating indegree in fairwalk
 
 # Hyperparameter for node2vec/fairwalk
 DIM = 64
@@ -33,7 +37,10 @@ walker_dict = {
   "indegreevarybeta" : InDegreeVaryBetaWalker,
   "ingroupdegree" : InGroupDegreeWalker,
   "commonngh": CommonNeighborWalker,
-  "levy": LevyWalker
+  "levy": LevyWalker,
+  "highlowindegree": HighLowInDegreeWalker,
+  "nonlocalindegree": NonLocalInDegreeWalker,
+  "fairindegreev2": FairDegreeWalk
 
 }
 def set_seed(seed):
@@ -48,14 +55,14 @@ def rewiring_list(G, node, number_of_rewiring):
 
 def get_walks(G,model="n2v",extra_params=dict(),num_cores=8):
     if model == "n2v":
-         node2vec = Node2Vec(G, dimensions=DIM, walk_length= 10, num_walks=4, workers=num_cores)
+         node2vec = Node2Vec(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores)
          return node2vec.walks
     elif model == "fw":
-        fw_model = FairWalk(G, dimensions=DIM, walk_length=10, num_walks=4, workers=num_cores)
+        fw_model = FairWalk(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores)
         return fw_model.walks
 
     WalkerObj = walker_dict[model] # degree_beta_1.0 for instance
-    walkobj = WalkerObj(G, dimensions=DIM, walk_len=10, num_walks=4, workers=num_cores,**extra_params)
+    walkobj = WalkerObj(G, dimensions=DIM, walk_len=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,**extra_params)
     return walkobj.walks
 
 def recommender_model_walker(G,t=0,path="",model="n2v",extra_params=dict(),num_cores=8, is_walk_viz=False):
@@ -188,3 +195,42 @@ def get_walk_plots(walks, g, t,dict_path):
        
     except Exception as error:
         print("Error in get walk plots: ", error)
+
+def get_avg_group_centrality(g,group=1):
+    
+    centrality_dict = nx.betweenness_centrality(g, normalized=True)
+    centrality = [val for node, val in centrality_dict.items() if g.nodes[node]["m"] == group]
+    avg_val = np.mean(centrality)
+    return avg_val
+
+def read_graph(file_name):
+    g = nx.read_gpickle(file_name)
+    # import pickle5
+    # with open(file_name, 'rb') as f:
+    #      g = pkl.load(f)
+    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+    nx.set_node_attributes(g, node2group, 'group')
+    return g
+
+def get_centrality_dict(model,g,hMM,hmm,centrality="betweenness"):        
+    dict_folder = "./centrality/{}/{}".format(centrality,model+"_fm_0.3")
+    print("Dict folder: ", dict_folder)
+    if not os.path.exists(dict_folder): os.makedirs(dict_folder)
+    dict_file_name = dict_folder+"/_hMM{}_hmm{}.pkl".format(hMM,hmm)
+        
+    if not os.path.exists(dict_file_name):
+            if centrality == "betweenness":
+                centrality_dict = nx.betweenness_centrality(g, normalized=True)
+            elif centrality == "closeness":
+                centrality_dict = nx.closeness_centrality(g)
+            else:
+                print("Invalid Centrality measure")
+                return
+            print("Generating pkl file: ", dict_file_name)
+            with open(dict_file_name, 'wb') as f:                
+                pkl.dump(centrality_dict,f)
+    else:
+            print("Loading pkl file: ", dict_file_name)
+            with open(dict_file_name, 'rb') as f:                
+                centrality_dict = pkl.load(f)
+    return centrality_dict

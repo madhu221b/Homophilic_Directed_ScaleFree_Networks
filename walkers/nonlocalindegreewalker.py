@@ -54,15 +54,16 @@ class NonLocalInDegreeWalker(Walker):
             self.group2node[node_id].append(node)
 
     def _get_avgdegree_by_group(self,successors):
-        grouptodegree = dict()
-        for node in successors:
-            node_id = self.node_attrs[node]
-            if node_id not in grouptodegree: grouptodegree[node_id] = list()
-            ind = self.indegree_df.loc[node_id,"degree"]
-            grouptodegree[node_id].append(ind)
-        
-        grouptodegree = {k:avg(v) for k,v in grouptodegree.items()}
-        return group2degree
+
+        uniquegroups = set([self.node_attrs[_] for _ in successors])
+        grouptodegree = {k:0 for k in uniquegroups}
+
+        for group in uniquegroups:
+            succ_grp = [_ for _ in successors if self.node_attrs[_] == group]
+            avg_val = self.indegree_df.loc[succ_grp,"degree"].mean()
+            grouptodegree[group] = avg_val
+
+        return grouptodegree
 
     def _get_non_local_successors(self, node, successors):
        """
@@ -80,20 +81,57 @@ class NonLocalInDegreeWalker(Walker):
        predecessors = self.graph.predecessors(node)
        non_local_nodes = []
         
-    #    ids = [self.node_attrs[node] for node in successors]
-    #    count_dict = Counter(ids)
-    #    count_dict = {k:(count_dict[k] if k in count_dict else 0) for k,_ in self.group2node.items()}
-    #    max_val = max(count_dict.values())
+       all_nodes = self.group2node[self.node_attrs[node]]
+       all_nodes = list(set(all_nodes) - set(set(predecessors) | set(successors) | set([node])))
+       sample_size = min(len(successors),len(all_nodes))
+       if sample_size == 0: sample_size = k
+           
+       unnormalized_prs = self.degree_pow_df.loc[all_nodes, "degree_pow"]
+       unnormalized_prs += 1e-6
+       _sum = unnormalized_prs.sum()
+ 
+       prs = unnormalized_prs/_sum
+       non_local_choice = np.random.choice(all_nodes, size=sample_size, p=prs, replace=False)
+       non_local_nodes.extend(non_local_choice)
+        
+    #    random.shuffle(non_local_nodes)
+       # node_ids = [self.node_attrs[node] for node in non_local_nodes]
+       # node_ids_succ = [self.node_attrs[node] for node in successors]
+       # print("~~~~~~~ for node identity: {}, local ids: {} , non local ids: {}".format(self.node_attrs[node],node_ids_succ,node_ids),file=open("output.txt","a"))
 
+       return non_local_nodes
+    # def _get_non_local_successors(self, node, successors):
+    #    """
+    #     Sampling with 
+    #     max_val = max(group_size of nghs)
+    #     sample size = max val - group size of group i in ngh
+    #     Design choice - nghs picked at random 
 
-    #    for group, count in count_dict.items():
-    #        delta_val = (max_val - count)
-    #        if max_val == 0: sample_size = k
-    #        else: sample_size = delta_val
+    #     this wont work.
+
+    #     Trying another approach - degree wise
+    #    """
+    #    k = 5
+       
+    #    predecessors = self.graph.predecessors(node)
+    #    non_local_nodes = []
+
+    #    group2degree = self._get_avgdegree_by_group(successors)
+    #    if group2degree: grp_with_maxavgdegree = max(group2degree, key=group2degree.get)
+    #    else: grp_with_maxavgdegree = -999
+  
+        
+    #    ## simple approach - just adding len(successors) of all the nodes which do NOT have max avg degree
+    #    for group, _ in group2degree.items():
+    #        if group == grp_with_maxavgdegree: continue # skip adding nodes with avg max degree
+
 
     #        all_nodes = self.group2node[group]
     #        all_nodes = list(set(all_nodes) - set(set(predecessors) | set(successors) | set([node])))
-    #        sample_size = min(sample_size,len(all_nodes))
+    #        sample_size = min(len(successors),len(all_nodes))
+
+    #        if sample_size == 0: sample_size = k
+           
     #        unnormalized_prs = self.degree_pow_df.loc[all_nodes, "degree_pow"]
     #        unnormalized_prs += 1e-6
     #        _sum = unnormalized_prs.sum()
@@ -102,18 +140,12 @@ class NonLocalInDegreeWalker(Walker):
     #        non_local_choice = np.random.choice(all_nodes, size=sample_size, p=prs, replace=False)
     #        non_local_nodes.extend(non_local_choice)
         
-    #    random.shuffle(non_local_nodes)
-    #    node_ids = [self.node_attrs[node] for node in non_local_nodes]
-    #    node_ids_succ = [self.node_attrs[node] for node in successors]
-    #    print("~~~~~~~ for node identity: {}, local ids: {} , non local ids: {}".format(self.node_attrs[node],node_ids_succ,node_ids),file=open("output.txt","a"))
-    #    non_local_majids = [_ for _ in successors if self.node_attrs[_] == 0]
-    #    non_local_minids = [_ for _ in successors if self.node_attrs[_] == 1]
-    #    if non_local_minids: avg_min_degree = self.indegree_df.loc[non_local_minids,"degree"].mean()
-    #    else: avg_min_degree = "null" 
-    #    if non_local_majids: avg_maj_degree = self.indegree_df.loc[non_local_majids,"degree"].mean()
-    #    else: avg_maj_degree = "null"
-    #    print("non local ids: avg min: {}, avg maj:{}".format(avg_min_degree,avg_maj_degree),file=open("output.txt","a"))
-       return non_local_nodes
+    # #    random.shuffle(non_local_nodes)
+    #    # node_ids = [self.node_attrs[node] for node in non_local_nodes]
+    #    # node_ids_succ = [self.node_attrs[node] for node in successors]
+    #    # print("~~~~~~~ for node identity: {}, local ids: {} , non local ids: {}".format(self.node_attrs[node],node_ids_succ,node_ids),file=open("output.txt","a"))
+
+    #    return non_local_nodes
 
 
     def _precompute_probabilities(self):
