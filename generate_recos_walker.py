@@ -147,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--hmm", help="homophily between minorities", type=float, default=0.5)
     parser.add_argument("--model", help="Different Walker Models", type=str)
     parser.add_argument("--fm", help="fraction of minorities", type=float, default=0.3)
-    parser.add_argument("--beta", help="Beta paramater", type=float, default=1.0)
+    parser.add_argument("--beta", help="Beta paramater", type=float, default=2.0)
     parser.add_argument("--alpha", help="Alpha paramater (Levy)", type=float, default=1.0)
 
     parser.add_argument("--start", help="Start idx", type=float, default=0.1)
@@ -158,9 +158,16 @@ if __name__ == "__main__":
     extra_params = dict()
     if args.model == "commonngh":
         model = args.model
-    elif args.model == "levy":
+    elif args.model in ["levy", "highlowindegree"]:
        model =  "{}_alpha_{}".format(args.model,args.alpha)
        extra_params = {"alpha":args.alpha}
+    elif args.model in ["levy", "highlowindegree"]:
+         extra_params = {"alpha":args.alpha}
+    elif args.model == "nonlocalindegree":
+        model = "{}_alpha_{}_beta_{}".format(args.model,args.alpha,args.beta)
+        extra_params = {"alpha":args.alpha,"beta":args.beta}
+    elif args.model == "fairindegreev2":
+        model = args.model
     else:
        model =  "{}_beta_{}".format(args.model,args.beta)
        extra_params = {"beta":args.beta}
