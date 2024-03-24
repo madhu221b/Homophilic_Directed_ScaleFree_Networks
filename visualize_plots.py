@@ -653,8 +653,8 @@ def utility_visualization():
     """
     time vs precision & recall
     """
-    homo_configs = ["0.2,0.8"]
-    models = ["model_indegree_beta_2.0_fm_0.3", "model_fw_p_1.0_q_1.0_fm_0.3","model_ingroupdegree_beta_1.0_fm_0.3"]
+    homo_configs = ["0.0,0.1"]
+    models = ["model_indegree_beta_2.0_fm_0.3", "model_fw_p_1.0_q_1.0_fm_0.3","model_nonlocaladaptivealpha_beta_2.0_fm_0.3"]
     colors = ["#38A055", "#756AB6", "#2EC83D"]
     linestyles = ["solid", "dashed"]
     
@@ -683,7 +683,7 @@ def utility_visualization():
         dummy_lines.append(ax1.plot([],[], c="black", ls = linestyle)[0])
 
     lines = ax1.get_lines()
-    ax1.legend([line for line in lines],["Indegree", "Fairwalk", "Cross In-Degree"],loc='upper center', bbox_to_anchor=(0.5, 1))
+    ax1.legend([line for line in lines],["Indegree", "Fairwalk", "Non Local Walk"],loc='upper center', bbox_to_anchor=(0.5, 1))
     ax2.legend([dummy_line for dummy_line in dummy_lines],["Recall", "Precision"],loc='upper center', bbox_to_anchor=(0.3, 1))
     # axes.add_artist(legend1) . 
     #     ax1.legend(lns, labs, loc=0)
@@ -736,7 +736,7 @@ def get_heatmap_utility(folder_path,metric=""):
     ax.set_xlabel("Homophily for Minority Class")
     ax.set_ylabel("Homophily for Majority Class")
     fig = ax.get_figure()
-    model = "fw" if "fw" in folder_path else "ind"
+    model = folder_path.split("utility/")[-1].split("/")[0]
     fig.savefig(plot_directory+"/{}_{}.png".format(metric,model))
 
 def get_edge_info(model, hMM, hmm):
@@ -1189,12 +1189,17 @@ def diff_in_heatmap(model):
 
 
 def print_centrality(file_name):
-    g = nx.read_gpickle(file_name)
+    g = read_graph(file_name)
 
-    avg_min = get_avg_group_centrality(g, group=1)
-    avg_maj = get_avg_group_centrality(g, group=0)
+    # avg_min = get_avg_group_centrality(g, group=1)
+    # avg_maj = get_avg_group_centrality(g, group=0)
+
+    avg_min = get_avg_group_centrality(g, group="1")
+    avg_maj = get_avg_group_centrality(g, group="0")
     diff = avg_min - avg_maj
-    print("Diff: ", diff)
+    print("Diff: {}, avg minority: {} ".format(diff,avg_min))
+ 
+    
     return diff
 
 
@@ -1264,6 +1269,40 @@ def visualize_rw_in_walk(file_name, model,hMM,hmm, extra_params=dict()):
     img_filename = "trial_{}_hMM{}_hmm{}.png".format(model,hMM,hmm)
     if "alpha" in extra_params.keys(): img_filename = "trial_{}_hMM{}_hmm{}_alpha{}.png".format(model,hMM,hmm,extra_params["alpha"])
     fig.savefig(img_filename, bbox_inches='tight')
+
+def avg_indegree_due_to_grp(g, grp):
+    node_attrs = nx.get_node_attributes(g, "group")
+    itr = [node for node, _ in node_attrs.items() if get_label(_) == grp]
+    total_len = len(itr)
+    print(total_len, grp)
+    sum_ = 0
+    for i in itr:      
+        neighbors = list(g.predecessors(i))
+        diff_nghs = len([ngh for ngh in neighbors if get_label(node_attrs[ngh]) != grp])
+        sum_ += diff_nghs
+    avg_indg = sum_/total_len
+    return avg_indg
+
+def check_avg_indegree(fm=0.3):
+    epsilon = 1e-6
+    file_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_fm_{}".format(fm)
+    graph_files = [os.path.join(file_path,file_name) for file_name in os.listdir(file_path) if "netmeta" not in file_name and ".gpickle" in file_name]
+    for graph_file in graph_files:
+        g = read_graph(graph_file)
+        hMM, hmm = graph_file.split("hMM")[-1].split("-")[0], graph_file.split("hmm")[-1].split("-")[0]
+        hMM, hmm = hMM.replace(".gpickle","").replace("_t_29",""), hmm.replace(".gpickle","").replace("_t_29","")
+        avgmindegree, avgMindegree = avg_indegree_due_to_grp(g,"m"), avg_indegree_due_to_grp(g, "M")
+        alpha_unno_m, alpha_unno_M = 1/(avgmindegree+epsilon), 1/(avgMindegree+epsilon)
+        sum_pr = alpha_unno_m+alpha_unno_M
+        print("hMM: {}, hmm:{}, avgmindegree: {}, avgMindegree: {}".format(hMM,hmm,avgmindegree, avgMindegree))
+        pr_m, pr_M = alpha_unno_m/sum_pr, alpha_unno_M/sum_pr
+        print("alpha pr m : {}, alpha pr M: {}".format(pr_m,pr_M)) 
+
+
+def get_centrality(file_name):
+    g = read_graph(file_name)
+        
+
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
     # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}".format(model)
@@ -1294,7 +1333,9 @@ if __name__ == "__main__":
     # utility_visualization()
     # folder_path = "../Homophilic_Directed_ScaleFree_Networks/utility/model_fw_p_1.0_q_1.0_fm_0.3/seed_42/"
     # folder_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_indegree_beta_2.0_fm_0.3/seed_42"
-    # get_heatmap_utility(folder_path,metric="recall")
+    # folder_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_nonlocaladaptivealpha_beta_2.0_fm_0.3/seed_42"
+    # # get_heatmap_utility(folder_path,metric="recall")
+    # get_heatmap_utility(folder_path,metric="precision")
 
     # model = "indegree_beta_2.0"
     # hMM, hmm = 0.0, 0.3
@@ -1325,10 +1366,17 @@ if __name__ == "__main__":
     # model, extra_params = "indegree", {"beta":2.0}
     # model, extra_params = "highlowindegree", {"alpha":0.5}
     
-    model, extra_params = "nonlocalindegree", {"alpha":1.0, "beta":2.0}
-    hMM, hmm = 0.8, 0.2 
-    path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_trial/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
-    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/nonlocalindegree_alpha_1.0_beta_2.0_fm_0.3/nonlocalindegree_alpha_1.0_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_0.gpickle".format(hMM,hmm)
-    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/indegree_beta_2.0_fm_0.3_impbaseline/indegree_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
-    visualize_rw_in_walk(path,model,hMM,hmm,extra_params)
+    # model, extra_params = "nonlocaltrialindegree", {"alpha":1.0, "beta":2.0}
+    # hMM, hmm = 0.0, 0.3 
+    # # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_trial/DPAH-N100-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}-ID0.gpickle".format(hMM,hmm)
+    # # # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/nonlocalindegree_alpha_1.0_beta_2.0_fm_0.3/nonlocalindegree_alpha_1.0_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_0.gpickle".format(hMM,hmm)
+    # # # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/indegree_beta_2.0_fm_0.3_impbaseline/indegree_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
+    
+    # path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/nonlocaltrialindegree_alpha_1.0_beta_2.0_fm_0.3/nonlocaltrialindegree_alpha_1.0_beta_2.0-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_28.gpickle".format(hMM,hmm)
+    # visualize_rw_in_walk(path,model,hMM,hmm,extra_params)
+
+    #  check_avg_indegree()
+
+    file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_indegree_beta_2.0_name_rice/seed_42/_indegree_beta_2.0-name_rice_t_29.gpickle"
+    print_centrality(file_name)
 

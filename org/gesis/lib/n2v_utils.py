@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import pickle as pkl
-# import pickle5 as pkl
+# import pickle5 as pkl/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_indegree_beta_2.0_name_rice/seed_42/_indegree_beta_2.0-name_rice_t_29.gpickle
 import networkx as nx
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -23,6 +23,8 @@ from walkers.indegreevarybetawalker import InDegreeVaryBetaWalker
 from walkers.ingroupdegreewalker import InGroupDegreeWalker
 from walkers.highlowindegreewalker import HighLowInDegreeWalker
 from walkers.nonlocalindegreewalker import NonLocalInDegreeWalker
+from walkers.nonlocalindegreetrialwalker import NonLocalInDegreeTrialWalker
+from walkers.nonlocaladaptivealpaindegreewalker import NonLocalAdaptiveInDegreeWalker
 from fairdegreewalk.fairdegreewalk import FairDegreeWalk # this is incorporating indegree in fairwalk
 
 # Hyperparameter for node2vec/fairwalk
@@ -40,6 +42,8 @@ walker_dict = {
   "levy": LevyWalker,
   "highlowindegree": HighLowInDegreeWalker,
   "nonlocalindegree": NonLocalInDegreeWalker,
+  "nonlocaltrialindegree": NonLocalInDegreeTrialWalker,
+  "nonlocaladaptivealpha": NonLocalAdaptiveInDegreeWalker,
   "fairindegreev2": FairDegreeWalk
 
 }
@@ -199,17 +203,19 @@ def get_walk_plots(walks, g, t,dict_path):
 def get_avg_group_centrality(g,group=1):
     
     centrality_dict = nx.betweenness_centrality(g, normalized=True)
-    centrality = [val for node, val in centrality_dict.items() if g.nodes[node]["m"] == group]
+    node_attrs = nx.get_node_attributes(g,"group")
+
+    centrality = [val for node, val in centrality_dict.items() if node_attrs[node] == group]
     avg_val = np.mean(centrality)
     return avg_val
 
 def read_graph(file_name):
     g = nx.read_gpickle(file_name)
-    # import pickle5
-    # with open(file_name, 'rb') as f:
-    #      g = pkl.load(f)
-    node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
-    nx.set_node_attributes(g, node2group, 'group')
+    try:
+        node2group = {node:g.nodes[node]["m"] for node in g.nodes()}
+        nx.set_node_attributes(g, node2group, 'group')
+    except Exception as e:
+        print("This should be a real graph. Group attributes should be already set.")
     return g
 
 def get_centrality_dict(model,g,hMM,hmm,centrality="betweenness"):        
