@@ -1189,19 +1189,27 @@ def diff_in_heatmap(model):
 
 
 def print_centrality(file_name):
+    "this is for rice specifically"
     g = read_graph(file_name)
 
-    # avg_min = get_avg_group_centrality(g, group=1)
-    # avg_maj = get_avg_group_centrality(g, group=0)
+    avg_min = get_avg_group_centrality(g, group=0)
+    avg_maj = get_avg_group_centrality(g, group=1)
+    # avg_m = get_avg_group_centrality(g, group=2)
 
-    avg_min = get_avg_group_centrality(g, group="1")
-    avg_maj = get_avg_group_centrality(g, group="0")
-    diff = avg_min - avg_maj
-    print("Diff: {}, avg minority: {} ".format(diff,avg_min))
- 
+
     
-    return diff
+    # print("Diff1: {} , Diff2: {}. Diff3: {}".format(avg_min-avg_maj, avg_min-avg_m,avg_maj-avg_m))
+ 
+    diff = (avg_min-avg_maj)
+    print("Diff: {}, avg min : {}".format(diff,avg_min))
+    return diff, avg_min
 
+def print_utility(file_name):
+    with open(file_name,"rb") as f:
+        result_dict = pkl.load(f)
+
+    prec, recall = result_dict[29]["precision"], result_dict[29]["recall"]
+    return prec, recall
 
 def count_edges(walks):
     count_dict = dict()
@@ -1298,10 +1306,73 @@ def check_avg_indegree(fm=0.3):
         pr_m, pr_M = alpha_unno_m/sum_pr, alpha_unno_M/sum_pr
         print("alpha pr m : {}, alpha pr M: {}".format(pr_m,pr_M)) 
 
+def plot_utility_metrics(ds="rice"):
+    models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+    x = np.arange(len(models))  # the label locations
+    width = 0.25  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots(layout='constrained')
+    seed_list =  [42,420,4200]
 
-def get_centrality(file_name):
-    g = read_graph(file_name)
-        
+    plot_dict = {"precision":[], "recall":[]}
+    for model in models:
+        avg_pre, avg_recall = 0, 0
+        for seed in seed_list:
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_{}_name_{}/seed_{}/_name{}.pkl".format(model,ds,seed,ds)
+            pre, recall = print_utility(file_name)
+            avg_pre += pre
+            avg_recall += recall
+        avg_pre /= len(seed_list)
+        avg_recall /= len(seed_list)
+        plot_dict["precision"].append(avg_pre)
+        plot_dict["recall"].append(avg_recall)
+
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Utility Metrics')
+    ax.set_xticks(x + width, models)
+    ax.legend(loc='upper left', ncols=3)
+    ax.set_ylim(0, 1.0)
+    fig.savefig("utility_barplot_{}.png".format(ds),bbox_inches='tight')
+
+def plot_fair_metrics(ds="rice"):
+    models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+    x = np.arange(len(models))  # the label locations
+    width = 0.25  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots(layout='constrained')
+    seed_list =  [42,420,4200]
+
+    plot_dict = {"fairness":[], "visibility":[]}
+    for model in models:
+        avg_fair, avg_vis = 0, 0
+        for seed in seed_list:
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
+            vis, fair = print_centrality(file_name)
+            avg_vis += vis
+            avg_fair += fair
+        avg_fair /= len(seed_list)
+        avg_vis /= len(seed_list)
+        plot_dict["fairness"].append(avg_fair)
+        plot_dict["visibility"].append(avg_vis)
+
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Fair Metrics')
+    ax.set_xticks(x + width, models)
+    ax.legend(loc='upper left', ncols=3)
+    ax.set_ylim(-0.004, 0.004)
+    fig.savefig("fair_barplot_{}.png".format(ds),bbox_inches='tight')
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -1377,6 +1448,13 @@ if __name__ == "__main__":
 
     #  check_avg_indegree()
 
-    file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_indegree_beta_2.0_name_rice/seed_42/_indegree_beta_2.0-name_rice_t_29.gpickle"
-    print_centrality(file_name)
+    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_indegree_beta_2.0_name_rice/seed_42/_indegree_beta_2.0-name_rice_t_29.gpickle"
+    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_rice/seed_42/_fw_p_1.0_q_1.0-name_rice_t_29.gpickle"
+   # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_rice/seed_42/_nonlocaladaptivealpha_beta_2.0-name_rice_t_29.gpickle"
+    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_twitter/seed_42/_nonlocaladaptivealpha_beta_2.0-name_twitter_t_29.gpickle"
+    
+    ds = "rice"
+    # plot_fair_metrics(ds="rice")
+    plot_utility_metrics(ds="rice")
+
 

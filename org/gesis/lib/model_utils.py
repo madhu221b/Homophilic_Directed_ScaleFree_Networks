@@ -11,7 +11,7 @@ def get_edge_dict(g):
     node_attr = nx.get_node_attributes(g, "group")
 
     for u, v in g.edges():
-        key = "{}->{}".format(get_label(node_attr[u]),get_label(node_attr[v]))    
+        key = "{}->{}".format(node_attr[u],node_attr[v])    
         if key not in edge_dict:
             edge_dict[key] = [(u,v)]
         else:
