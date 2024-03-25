@@ -7,6 +7,7 @@ import gensim
 class Walker(object):
     def __init__(self, graph,dimensions=64,num_walks=200,walk_len=10,workers=1):
         """Creating a graph."""
+        self.weight_key = "weight"
         self.graph = graph
         self.walks = None
         self.dimensions = dimensions
@@ -114,7 +115,12 @@ class Walker(object):
         if 'workers' not in skip_gram_params:
             skip_gram_params['workers'] = self.workers
 
-        if 'size' not in skip_gram_params:
-            skip_gram_params['size'] = self.dimensions
+        # if 'size' not in skip_gram_params:
+        #     skip_gram_params['size'] = self.dimensions
+
+        if 'vector_size' not in skip_gram_params:
+             skip_gram_params['vector_size'] = self.dimensions
+
+        
 
         return gensim.models.Word2Vec(self.walks, **skip_gram_params)

@@ -28,17 +28,22 @@ class InDegreeWalker(Walker):
 
 
     def _precompute_probabilities(self):
-        for i in sorted(self.graph.nodes()):
+        for i in self.graph.nodes():
             # we traverse neighbours only because for non neighbours this value should be zero
             # according to formula 
             neighbors = list(self.graph.successors(i))
-            _sum = sum([v for k,v in self.degree_pow.items() if k in neighbors])
-            if _sum != 0: # denominator is non zero
-               for (_,j) in np.ndenumerate(neighbors):                
-                    num = self.degree_pow[j]
-                    pr = num/_sum
-                    self.d_graph[i]["pr"].append(pr)
-                    self.d_graph[i]["ngh"].append(j)                   
+       
+            if len(neighbors) != 0: # denominator is non zero
+                _sum = 0
+                for (_,j) in np.ndenumerate(neighbors):                
+                    deg = self.degree_pow[j]
+                    w = self.graph[i][j].get(self.weight_key, 1)
+                    num = deg*w
+                    _sum += num
+                    self.d_graph[i]["pr"].append(num)
+                    self.d_graph[i]["ngh"].append(j)   
+
+                self.d_graph[i]["pr"] =  self.d_graph[i]["pr"]/_sum     
 
 
  
