@@ -1,5 +1,6 @@
 import os
 import networkx as nx
+from facebook_scrap import get_graph
 
 def get_edge_info(g):
     node_attrs = nx.get_node_attributes(g, "group")
@@ -69,16 +70,24 @@ def load_twitter():
     g.add_weighted_edges_from(edge_data)
     return g
 
-   
+def load_facebook(features=["gender"]):
+    """
+    Assuming only one attribute for now in features arr
+    """
+    dataset_path = "./data/facebook"
+    g = get_graph()
+    return g   
 
 def load_dataset(name):
     if name == "rice":
         g = load_rice()
     elif name == "twitter":
         g = load_twitter()
+    elif name == "facebook":
+        g = load_facebook()
         
     return g
 
 if __name__ == "__main__":
-    g = load_dataset(name="twitter")
+    g = load_dataset(name="facebook")
     get_edge_info(g)
