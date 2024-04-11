@@ -5,7 +5,7 @@ import networkx as nx
 
 ds_path = "./data/facebook"
 
-def gender_extract(feat_arr):
+def gender_extract(feat_arr,global_idxs=[]):
     """
     assuming array size is always 2
     """
@@ -14,6 +14,13 @@ def gender_extract(feat_arr):
         return 0
     else:
         return conds[0]+1
+
+def locale_extract(feat_arr,global_idxs=[]):
+    conds = np.where(feat_arr == 1)[0]
+    if len(conds) == 0:
+        return -1
+    else:
+        return global_idxs[conds[0]]
 
 def find_feature_numbers(featfilename, features):
     print("~~~Reading feat file : {}, for features : {}".format(featfilename,features))
@@ -25,11 +32,18 @@ def find_feature_numbers(featfilename, features):
             feature = [feature for feature in features if feature in line]
             if feature: feature = feature[0]
             else: continue
-            if feature not in feat2num: feat2num[feature] = list()
+            if feature not in feat2num: 
+                feat2num[feature] = dict()
+                feat2num[feature]["local"], feat2num[feature]["global"] = list(), list()
             
-            feature_idx = int(line.split()[0])
-            feat2num[feature].append(feature_idx)
+            items = line.split()
+            feature_idx = int(items[0])
+            num_idx = int(items[-1])
+            feat2num[feature]["local"].append(feature_idx)
+            feat2num[feature]["global"].append(num_idx)
+
     return feat2num, len(content)
+    
 
 def find_idx(item,list_):
     try:
@@ -58,12 +72,15 @@ def read_features(featfile,feat2num,feat_len):
               node = content[next_idx] 
               features = np.array(content[next_idx+1:next_idx+1+feat_len])
               if node not in nodedict: nodedict[node] = dict()  
-              for feat_name, feat_idxs in feat2num.items():
+              for feat_name, feat_dict in feat2num.items():
+                  feat_idxs = np.array(feat_dict["local"])
+                  global_idxs = np.array(feat_dict["global"])
                   nodedict[node][feat_name] = features[feat_idxs] 
                   if feat_name == "gender": feat_extract_ =  gender_extract
-                  nodedict[node][feat_name] = feat_extract_(features[feat_idxs])
+                  elif feat_name == "locale": feat_extract_ = locale_extract
+                  nodedict[node][feat_name] = feat_extract_(features[feat_idxs],global_idxs=global_idxs)
                   if egonode in nodedict and feat_name in nodedict[egonode]: pass
-                  else: nodedict[egonode][feat_name] = feat_extract_(content_ego[feat_idxs])
+                  else: nodedict[egonode][feat_name] = feat_extract_(content_ego[feat_idxs],global_idxs=global_idxs)
               next_idx +=  (feat_len+1)
     return nodedict
               
@@ -95,14 +112,20 @@ def get_edges():
     edges = list(df.itertuples(index=False))
     return edges
 
-def get_graph():
-    feats = ["gender"]
+def get_graph(feats):
+    
     node_dict = read_feature_files(feat_extract=feats)
     edge_data = get_edges()
     node_data = [(node,{"group":dict_[feats[0]]}) for node, dict_ in node_dict.items()]
     g = nx.DiGraph()
     g.add_nodes_from(node_data)
     g.add_edges_from(edge_data)
+    
+    if feats[0] == "locale":
+       # taking only specific groups
+       node_attr = nx.get_node_attributes(g,"group")
+       remove = [node for node,id_ in node_attr.items() if id_ not in [126,127,278]]
+       g.remove_nodes_from(remove)
     return g
     
         

@@ -75,7 +75,7 @@ def load_facebook(features=["gender"]):
     Assuming only one attribute for now in features arr
     """
     dataset_path = "./data/facebook"
-    g = get_graph()
+    g = get_graph(features)
     return g   
 
 def load_dataset(name):
@@ -83,11 +83,14 @@ def load_dataset(name):
         g = load_rice()
     elif name == "twitter":
         g = load_twitter()
-    elif name == "facebook":
-        g = load_facebook()
+    elif name.startswith("facebook"):
+        if "locale" in name:
+            g = load_facebook(features=["locale"])
+        else:
+            g = load_facebook()
         
     return g
 
 if __name__ == "__main__":
-    g = load_dataset(name="facebook")
+    g = load_dataset("facebook_locale")
     get_edge_info(g)
