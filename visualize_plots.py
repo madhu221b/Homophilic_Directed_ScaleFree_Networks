@@ -9,16 +9,41 @@ import operator
 # import matplotlib
 # matplotlib.use('Agg')
 import matplotlib as mpl
+
+
+label_dict = {
+"nonlocaladaptivealpha_beta_2.0": "adaptive " + r"$\alpha$",
+"nonlocalindegreelocalrandom_alpha_0.5_beta_2.0" : r"$\alpha=0.5$",
+"nonlocalindegreelocalrandom_alpha_0.0_beta_2.0": r"$\alpha=0$",
+"nonlocalindegreelocalrandom_alpha_0.3_beta_2.0": r"$\alpha=0.3$",
+"nonlocalindegreelocalrandom_alpha_0.7_beta_2.0": r"$\alpha=0.7$",
+"nonlocalindegreelocalrandom_alpha_1.0_beta_2.0": r"$\alpha=1$",
+# "nllindegreelocalrandom_alpha_0.5_beta_2.0": "nll_alpha0.5",
+# "nllindegreelocalrandom_alpha_0.0_beta_2.0": "nll_alpha0.0",
+# "nllindegreelocalrandom_alpha_0.3_beta_2.0": "nll_alpha0.3",
+# "nllindegreelocalrandom_alpha_0.7_beta_2.0": "nll_alpha0.7",
+# "nllindegreelocalrandom_alpha_1.0_beta_2.0": "nll_alpha1.0",
+"nlindlocalind_alpha_0.5_beta_2.0": r"$\alpha=0.5$",
+"nlindlocalind_alpha_0.0_beta_2.0": r"$\alpha=0$",
+"nlindlocalind_alpha_0.3_beta_2.0": r"$\alpha=0.3$",
+"nlindlocalind_alpha_0.7_beta_2.0": r"$\alpha=0.7$",
+"nlindlocalind_alpha_1.0_beta_2.0": r"$\alpha=1$",
+"beepboop_beta_2.0": "Adaptive " + r"$\alpha$",
+"beepboopv2_beta_2.0": "[NEW] Adaptive " + r"$\alpha$",
+"indegree_beta_2.0": "indegree",
+"n2v_p_1.0_q_1.0": "n2v",
+"fw_p_1.0_q_1.0": "fw"
+}
+
 if os.environ.get('DISPLAY','') == '':
     print('no display found. Using non-interactive Agg backend')
     os.environ.__setitem__('DISPLAY', ':0.0')
     mpl.use('Agg')
 
 import matplotlib.pyplot as plt
-# import nx_pydot
+plt.rcParams['text.usetex'] = True
 
-
-from org.gesis.lib.n2v_utils import get_walks, get_avg_group_centrality, read_graph, get_centrality_dict
+from org.gesis.lib.n2v_utils import get_walks, get_avg_group_centrality, read_graph, get_centrality_dict, get_diff_group_centrality, avg_centrality
 from generate_heatmap_centrality import get_grid
 
 T = 30
@@ -1188,28 +1213,83 @@ def diff_in_heatmap(model):
     fig.savefig("tria_diff_heatmap_{}.png".format(model),bbox_inches='tight')
 
 
-def print_centrality(file_name):
-    "this is for rice specifically"
-    g = read_graph(file_name)
-
-    avg_min = get_avg_group_centrality(g, group=0)
-    avg_maj = get_avg_group_centrality(g, group=1)
-    # avg_m = get_avg_group_centrality(g, group=2)
-
-
-    
-    # print("Diff1: {} , Diff2: {}. Diff3: {}".format(avg_min-avg_maj, avg_min-avg_m,avg_maj-avg_m))
+def print_visibility(file_name):
  
-    diff = (avg_min-avg_maj)
-    print("Diff: {}, avg min : {}".format(diff,avg_min))
-    return diff, avg_min
+    if not os.path.exists(file_name): 
+        print(file_name)
+
+        return dict()
+    g = read_graph(file_name)
+    vis_dict = dict() 
+    if "rice" in file_name or "fm" in file_name or "syn_2" in file_name: 
+        groups = [0,1]
+    elif "facebook_locale" in file_name:
+        groups = [126,127,278]
+    elif "twitter" in file_name or "facebook" in file_name:
+        groups = [0,1,2]
+    
+    # elif "twitter" in file_name: min_grp, maj_grp = 2, 1
+    cent_file = file_name.replace(".gpickle","") + ".pkl"
+    if not os.path.exists(cent_file):
+        centrality_dict = nx.betweenness_centrality(g, normalized=True)
+        print("Generating pkl file: ", cent_file)
+        with open(cent_file, 'wb') as f:                
+                pkl.dump(centrality_dict,f)
+    else:
+        print("Loading cent file: ", cent_file)
+        with open(cent_file,"rb") as f:
+              centrality_dict = pkl.load(f)
+
+    for group in groups:
+        avg_bet = get_avg_group_centrality(g,centrality_dict,group=group)
+        vis_dict[group] = avg_bet
+    return vis_dict
+
+def print_fairness(file_name):
+ 
+    if not os.path.exists(file_name): 
+        print(file_name)
+        return dict()
+    g = read_graph(file_name)
+    fairness_dict = dict() 
+    if "rice" in file_name or "fm" in file_name or "syn_2" in file_name: 
+        groups = [0,1]
+    elif "facebook_locale" in file_name:
+        groups = [126,127,278]
+    elif "twitter" in file_name or "facebook" in file_name:
+        groups = [0,1,2]
+
+    cent_file = file_name.replace(".gpickle","") + ".pkl"
+    if not os.path.exists(cent_file):
+         centrality_dict = nx.betweenness_centrality(g, normalized=True)
+         print("Generating pkl file: ", cent_file)
+         with open(cent_file, 'wb') as f:                
+                pkl.dump(centrality_dict,f)
+    else:
+        print("Loading cent file: ", cent_file)
+        with open(cent_file,"rb") as f:
+              centrality_dict = pkl.load(f)
+
+    for group in groups:
+        avg_diff =  get_diff_group_centrality(g,centrality_dict,group=group)
+        fairness_dict[group] = avg_diff
+    return fairness_dict
 
 def print_utility(file_name):
-    with open(file_name,"rb") as f:
-        result_dict = pkl.load(f)
-
-    prec, recall = result_dict[29]["precision"], result_dict[29]["recall"]
-    return prec, recall
+    prec, recall, acc, auc = 0, 0, 0, 0
+    try:
+  
+        if os.path.exists(file_name):
+            with open(file_name,"rb") as f:
+                result_dict = pkl.load(f)
+       
+            prec, recall, acc = result_dict[29].get("precision",0), result_dict[29].get("recall",0), result_dict[29].get("accuracy",0)
+            auc = result_dict[29].get("auc_score",0)
+        else:
+            prec, recall, acc, auc = 0, 0, 0, 0
+    except Exception as e:
+        print("error in print utility: ", e)
+    return prec, recall, acc, auc
 
 def count_edges(walks):
     count_dict = dict()
@@ -1306,26 +1386,36 @@ def check_avg_indegree(fm=0.3):
         pr_m, pr_M = alpha_unno_m/sum_pr, alpha_unno_M/sum_pr
         print("alpha pr m : {}, alpha pr M: {}".format(pr_m,pr_M)) 
 
-def plot_utility_metrics(ds="rice"):
-    models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+def plot_utility_metrics(ds="rice",models=[]):
+    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0",  "indegree_beta_-2.0", "indegree_beta_0.0","fw_p_1.0_q_1.0"]
+    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
     x = np.arange(len(models))  # the label locations
-    width = 0.25  # the width of the bars
+    width = 0.2  # the width of the bars
     multiplier = 0
-    fig, ax = plt.subplots(layout='constrained')
-    seed_list =  [42,420,4200]
+    fig, ax = plt.subplots()
+    # seed_list =  [42,420,4200]
+    seed_list = [42]
 
-    plot_dict = {"precision":[], "recall":[]}
+    # plot_dict = {"precision":[], "recall":[], "accuracy":[], "auc":[]}
+    plot_dict = {"auc":[]}
     for model in models:
-        avg_pre, avg_recall = 0, 0
+        avg_pre, avg_recall, avg_acc, avg_auc = 0, 0, 0, 0
         for seed in seed_list:
             file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_{}_name_{}/seed_{}/_name{}.pkl".format(model,ds,seed,ds)
-            pre, recall = print_utility(file_name)
-            avg_pre += pre
-            avg_recall += recall
-        avg_pre /= len(seed_list)
-        avg_recall /= len(seed_list)
-        plot_dict["precision"].append(avg_pre)
-        plot_dict["recall"].append(avg_recall)
+            pre, recall, acc, auc = print_utility(file_name)
+            # avg_pre += pre
+            # avg_recall += recall
+            # avg_acc += acc
+            avg_auc += auc
+        # avg_pre /= len(seed_list)
+        # avg_recall /= len(seed_list)
+        # avg_acc /= len(seed_list)
+        avg_auc /= len(seed_list)
+        # plot_dict["precision"].append(avg_pre)
+        # plot_dict["recall"].append(avg_recall)
+        # plot_dict["accuracy"].append(avg_acc)
+        plot_dict["auc"].append(avg_auc)
 
     for label, val in plot_dict.items():
             offset = width * multiplier
@@ -1335,31 +1425,43 @@ def plot_utility_metrics(ds="rice"):
 
 
     ax.set_ylabel('Utility Metrics')
-    ax.set_xticks(x + width, models)
+    ax.set_xticks(x + width, labels)
     ax.legend(loc='upper left', ncols=3)
-    ax.set_ylim(0, 1.0)
+    ax.set_ylim(0, 1.1)
     fig.savefig("utility_barplot_{}.png".format(ds),bbox_inches='tight')
 
-def plot_fair_metrics(ds="rice"):
-    models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+def plot_utility_metrics_syn(syn_ds,models):
+    fm = 0.3
+    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
     x = np.arange(len(models))  # the label locations
-    width = 0.25  # the width of the bars
+    width = 0.2  # the width of the bars
     multiplier = 0
-    fig, ax = plt.subplots(layout='constrained')
+    fig, ax = plt.subplots(layout="constrained")
     seed_list =  [42,420,4200]
+    # seed_list =  [42]
 
-    plot_dict = {"fairness":[], "visibility":[]}
-    for model in models:
-        avg_fair, avg_vis = 0, 0
-        for seed in seed_list:
-            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
-            vis, fair = print_centrality(file_name)
-            avg_vis += vis
-            avg_fair += fair
-        avg_fair /= len(seed_list)
-        avg_vis /= len(seed_list)
-        plot_dict["fairness"].append(avg_fair)
-        plot_dict["visibility"].append(avg_vis)
+    # plot_dict = {"precision":[], "recall":[], "accuracy":[], "auc":[]}
+    plot_dict = {"auc":[]}
+    for config in syn_ds:
+        hMM, hmm = config.split(",")
+        for model in models:
+            avg_pre, avg_recall, avg_acc, avg_auc = 0, 0, 0, 0
+            for seed in seed_list:
+                file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_{}_fm_{}/seed_{}/_hMM{}_hmm{}.pkl".format(model,fm,seed,hMM,hmm)
+                pre, recall, acc, auc = print_utility(file_name)
+                # avg_pre += pre
+                # avg_recall += recall
+                # avg_acc += acc
+                avg_auc += auc
+            # avg_pre /= len(seed_list)
+            # avg_recall /= len(seed_list)
+            # avg_acc /= len(seed_list)
+            avg_auc /= len(seed_list)
+            # plot_dict["precision"].append(avg_pre)
+            # plot_dict["recall"].append(avg_recall)
+            # plot_dict["accuracy"].append(avg_acc)
+            plot_dict["auc"].append(avg_auc)
 
     for label, val in plot_dict.items():
             offset = width * multiplier
@@ -1368,11 +1470,240 @@ def plot_fair_metrics(ds="rice"):
             multiplier += 1
 
 
-    ax.set_ylabel('Fair Metrics')
-    ax.set_xticks(x + width, models)
+    ax.set_ylabel('Utility Metrics')
+    ax.set_xticks(x + width,labels)
+    ax.legend(loc='upper left', ncols=3)
+    ax.set_ylim(0, 1.1)
+    fig.savefig("utility_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+
+
+def plot_fair_metrics(ds="rice",models=[]):
+    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0","indegree_beta_-2.0","indegree_beta_0.0", "fw_p_1.0_q_1.0"]
+    # models = ["nllindegreelocalrandom_alpha_0.0_beta_2.0","nllindegreelocalrandom_alpha_0.3_beta_2.0","nllindegreelocalrandom_alpha_0.5_beta_2.0","nllindegreelocalrandom_alpha_0.7_beta_2.0","nllindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    # models =["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
+    x = np.arange(len(models))  # the label locations
+    width = 0.25  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots()
+    # seed_list =  [42,420,4200]
+    seed_list = [42]
+
+    plot_dict = dict()
+    
+    for model in models:
+        vis_list = []
+        for seed in seed_list:
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
+            vis_dict = print_visibility(file_name)
+            # print(vis_dict)
+            vis_list.append(vis_dict)
+
+        # print(vis_list)   
+        keys = vis_list[0].keys()
+        for key in keys:
+            arr = [_[key] for _ in vis_list]
+            avg_vis = np.mean(arr)
+            if key not in plot_dict: plot_dict[key] = list()
+            plot_dict[key].append(avg_vis)
+  
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            # ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Visibility')
+    ax.set_xticks(x + width, labels)
+    ax.legend(loc='upper left', ncols=3)
+    if ds == "rice": llim, uplim = 0,0.004
+    else: llim, uplim = 0, 0.0025
+    ax.set_ylim(llim,uplim)
+    fig.savefig("vis_barplot_{}.png".format(ds),bbox_inches='tight')
+
+def plot_fair_metrics_syn(syn_ds,models):
+    fm = 0.3
+    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
+    x = np.arange(len(models))  # the label locations
+    width = 0.2  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots()
+    seed_list =  [42,420,4200]
+    # seed_list =  [42]
+
+    plot_dict = dict() 
+    for config in syn_ds:
+        hMM, hmm = config.split(",")
+        for model in models:
+            vis_list = []
+            for seed in seed_list:
+               file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}/{}-N1000-fm{}-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,fm,seed,model,fm,hMM,hmm)
+               vis_dict = print_visibility(file_name)
+               vis_list.append(vis_dict)
+
+   
+            keys = vis_list[0].keys()
+            for key in keys:
+                arr = [_[key] for _ in vis_list]
+                avg_vis = np.mean(arr)
+                if key not in plot_dict: plot_dict[key] = list()
+                plot_dict[key].append(avg_vis)
+  
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            # ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Visibility')
+    ax.set_xticks(x + width,labels)
+    ax.legend(loc='upper left', ncols=3)
+    ax.set_ylim(0, 0.004)
+    fig.savefig("vis_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+
+
+def plot_fair_metrics_v2(ds="rice",models=[]):
+    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "indegree_beta_-2.0", "indegree_beta_0.0", "fw_p_1.0_q_1.0"]
+    # models = ["nllindegreelocalrandom_alpha_0.0_beta_2.0","nllindegreelocalrandom_alpha_0.3_beta_2.0","nllindegreelocalrandom_alpha_0.5_beta_2.0","nllindegreelocalrandom_alpha_0.7_beta_2.0","nllindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
+    x = np.arange(len(models))  # the label locations
+    width = 0.25  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots()
+    # seed_list =  [42,420,4200]
+    seed_list = [42]
+
+    plot_dict = dict()
+    
+    for model in models:
+        fair_list = []
+        for seed in seed_list:
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
+            fair_dict = print_fairness(file_name)
+            fair_list.append(fair_dict)
+            fair_list.append(fair_dict)
+
+        # print(vis_list)   
+        keys = fair_list[0].keys()
+        for key in keys:
+            arr = [_[key] for _ in fair_list]
+            avg_fair = np.mean(arr)
+            if key not in plot_dict: plot_dict[key] = list()
+            plot_dict[key].append(avg_fair)
+  
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            # ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Fairness')
+    ax.set_xticks(x + width, labels)
+    ax.legend(loc='upper left', ncols=3)
+    if ds == "rice": llim, uplim = -0.004,0.004
+    else: llim, uplim = -0.0025, 0.0025
+    ax.set_ylim(llim,uplim)
+    fig.savefig("fair_barplot_{}.png".format(ds),bbox_inches='tight')
+
+def plot_fair_metrics_v2_syn(syn_ds,models):
+    fm = 0.3
+    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
+    # models = ["nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_0.7_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    labels = [label_dict.get(model, model) for model in models]
+    x = np.arange(len(models))  # the label locations
+    width = 0.2  # the width of the bars
+    multiplier = 0
+    fig, ax = plt.subplots()
+    seed_list =  [42,420,4200]
+    # seed_list = [42]
+
+    plot_dict = dict()
+    for config in syn_ds:
+        hMM, hmm = config.split(",")
+        for model in models:
+            fair_list = []
+            for seed in seed_list:
+                file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}/{}-N1000-fm{}-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,fm,seed,model,fm,hMM,hmm)
+                fair_dict = print_fairness(file_name)
+                fair_list.append(fair_dict)
+
+            # print(vis_list)   
+            keys = fair_list[0].keys()
+            for key in keys:
+                arr = [_[key] for _ in fair_list]
+                avg_fair = np.mean(arr)
+                if key not in plot_dict: plot_dict[key] = list()
+                plot_dict[key].append(avg_fair)
+    
+    for label, val in plot_dict.items():
+            offset = width * multiplier
+            rects = ax.bar(x + offset, val, width, label=label)
+            # ax.bar_label(rects, padding=3)
+            multiplier += 1
+
+
+    ax.set_ylabel('Fairness')
+    ax.set_xticks(x + width, labels)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(-0.004, 0.004)
-    fig.savefig("fair_barplot_{}.png".format(ds),bbox_inches='tight')
+    fig.savefig("fair_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+
+def plot_avg_indegree(model,ds):
+    main_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks"
+    T = [0,15,29]
+
+    for t in T:
+        file_name = main_path+"/model_{}_name_{}/seed_42/_{}-name_{}_t_{}.gpickle".format(model,ds,model,ds,t)
+        g = read_graph(file_name)
+        groups = set(nx.get_node_attributes(g,"group").values())
+        for group in groups:
+            print("group: ", group)
+            same_, diff_ = avg_centrality(g,group,deg_type="out")
+            print("same: {}, diff: {}".format(same_,diff_))
+
+def get_prod():
+    graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_facebook_syn_2/seed_42/_fw_p_1.0_q_1.0-name_facebook_syn_2_t_29.gpickle"
+    dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_facebook_syn_2/seed_42/_fw_p_1.0_q_1.0-name_facebook_syn_2_t_29.pkl"
+
+    # graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fairindegree_beta_2.0_name_facebook_syn_2/seed_42/_fairindegree_beta_2.0-name_facebook_syn_2_t_29.gpickle"
+    # dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fairindegree_beta_2.0_name_facebook_syn_2/seed_42/_fairindegree_beta_2.0-name_facebook_syn_2_t_29.pkl"
+
+    g = nx.read_gpickle(graph_path)
+    node_attrs = nx.get_node_attributes(g, "group")
+    groups = list(set(node_attrs.values()))
+    with open(dict_path,"rb") as f:
+        cent = pkl.load(f)
+
+    
+    res_dict = dict()
+    for u,v in g.edges():
+            prod = cent[u]*cent[v]
+            label = "{}->{}".format(node_attrs[u],node_attrs[v])
+            if label not in res_dict: res_dict[label] = {"val":0, "num":0}
+            res_dict[label]["val"] += prod
+            res_dict[label]["num"] += 1
+
+    for group, sub_dict in res_dict.items():
+        group1, group2 = group.split("->")[0], group.split("->")[1]
+        if group1 != group2: continue
+        group =  group1 
+        homo = sub_dict["val"]/sub_dict["num"]
+        
+        all_val = sum([res_dict["{}->{}".format(group,group2)]["val"] for group2 in groups if group != group2])
+        all_num = sum([res_dict["{}->{}".format(group,group2)]["num"] for group2 in groups if group != group2])
+        
+        hetero = all_val/all_num
+
+        print("Group: {}, ({})".format(group,hetero-homo))
+
+           
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -1453,8 +1784,25 @@ if __name__ == "__main__":
    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_rice/seed_42/_nonlocaladaptivealpha_beta_2.0-name_rice_t_29.gpickle"
     # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_twitter/seed_42/_nonlocaladaptivealpha_beta_2.0-name_twitter_t_29.gpickle"
     
-    ds = "rice"
-    # plot_fair_metrics(ds="rice")
-    plot_utility_metrics(ds="rice")
+    # ds = "facebook_syn_2"
+
+    # # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0"]
+    # # models =  ["nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_0.7_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0"]
+    # # models = ["n2v_p_1.0_q_1.0","indegree_beta_2.0","nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    # # models = ["n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0","indegree_beta_2.0","beepboopv2_beta_2.0"]
+    # models = ["fw_p_1.0_q_1.0","fairindegree_beta_2.0","beepboop_beta_2.0","beepboopv2_beta_2.0","beepboopv3_beta_2.0"]
+    # plot_fair_metrics(ds=ds,models=models)
+    # plot_fair_metrics_v2(ds=ds,models=models)
+    # plot_utility_metrics(ds=ds,models=models)
+   
+#    ["0.2,0.2"],["0.8,0.2"],["0.2,0.8"],["0.8,0.8"]
+    # for syn_ds in [["0.2,0.2"],["0.2,0.8"],["0.8,0.2"],["0.8,0.8"]]:
+    #     plot_fair_metrics_syn(syn_ds,models)
+    #     plot_fair_metrics_v2_syn(syn_ds,models)
+    #     plot_utility_metrics_syn(syn_ds,models)
+   ## plot_avg_indegree(models[-1],"facebook_locale")
+
+   get_prod()
+        
 
 
