@@ -11,15 +11,15 @@ try:
 except Exception as error:
     from walker import Walker
 
-class InDegreeVaryBetaWalker(Walker):
+class InDegreeVaryBetaWalkerV3(Walker):
     def __init__(self,graph,beta=0,workers=1,dimensions=64,walk_len=10,num_walks=200):
-        print(" Adaptive Alpha In Degree Walker with varying beta: ", beta)
+        print(" [V3]Adaptive Alpha In Degree Walker with varying beta: ", beta)
         super().__init__(graph, workers=workers,dimensions=dimensions,walk_len=walk_len,num_walks=num_walks)
 
         self.number_of_nodes = self.graph.number_of_nodes()
         self.node_attrs = nx.get_node_attributes(graph, "group")
         self.groups = set(self.node_attrs.values())
-
+        self.offset = 1.0
         # Populate nodes by group
         self._get_group_to_node_dict()
 
@@ -42,6 +42,9 @@ class InDegreeVaryBetaWalker(Walker):
         self.degree_pow_df = pd.DataFrame.from_dict(degree_pow, orient='index', columns=['degree_pow'])
 
 
+        
+        print("!! Compute fm dict")
+        self._precompute_fmdict()
 
         # compute probabilities
         print("!!!! Computing non-local jump probability")
@@ -73,12 +76,11 @@ class InDegreeVaryBetaWalker(Walker):
 
         return edge_dict
    
-    def _compute_homophily(self):
+    def _compute_homophiily(self):
         g = self.graph
         edge_dict = self._get_edge_dict()
-        groups = self.groups
         homo_dict = dict()
-        for uniquegroup in groups:
+        for uniquegroup in self.groups:
             denominator = sum([edge_dict["{}->{}".format(uniquegroup,grp)] for grp in groups])
             homo_dict[uniquegroup] = edge_dict["{}->{}".format(uniquegroup,uniquegroup)]/denominator
         return homo_dict
@@ -189,12 +191,13 @@ class InDegreeVaryBetaWalker(Walker):
         return avg_indg
 
     def _precompute_alpha(self):
-        uniquegroups = self.group2node.keys()
+        uniquegroups = self.groups
         group2alpha = dict()
         epsilon = 1e-3
         edge_dict = self._get_edge_dict()
 
         same_dict = dict()
+
         for uniquegroup in uniquegroups:
             out_i = self.avg_outdegree_due_to_itself(uniquegroup)
             in_i = self.avg_indegree_due_to_itself(uniquegroup)
@@ -207,9 +210,10 @@ class InDegreeVaryBetaWalker(Walker):
             
 
         for uniquegroup in uniquegroups:
-        
+            print("~~ For unique group: ", uniquegroup)
             u_dict = self.avg_outdegree_to_grp_dict(uniquegroup)
             v_dict = self.avg_indegree_to_grp_dict(uniquegroup)
+
             print("u_dict: {}, v_dict: {}".format(u_dict,v_dict))
             un_norm_NL = 0
             for k, _ in u_dict.items():
@@ -220,31 +224,18 @@ class InDegreeVaryBetaWalker(Walker):
             
             if len(u_dict):
                 un_norm_NL = un_norm_NL/len(u_dict)
-         
-
-
-            # same_dict_grp = {k:v for k,v in same_dict.items() if k != uniquegroup}
-            len_ = len(same_dict)
-            
-            un_norm_L  = 0
-            for k, sub_dict in same_dict.items():
-                u = sub_dict["out_i"]
-                v = sub_dict["in_i"]
-                un_norm_L += (u*v)
-                
-            un_norm_L = un_norm_L/len_
-            
-            if un_norm_L == 0 and un_norm_NL == 0:
-                un_norm_L = un_norm_NL = 0.5
-
-            sum_ = un_norm_L+un_norm_NL
-            print("unnormal L : {}, unnormal NL: {}".format(un_norm_L,un_norm_NL))
+                    
+            print("unnormal NL: {}".format(un_norm_NL))
             if uniquegroup not in group2alpha: group2alpha[uniquegroup] = dict()
-            group2alpha[uniquegroup]["local"] = un_norm_L/sum_
-            group2alpha[uniquegroup]["nonlocal"] =  un_norm_NL/sum_
-            print("Normalised prs: ", group2alpha[uniquegroup])
+            group2alpha[uniquegroup]["nonlocal"] =  un_norm_NL
 
 
+        un_norm_NL_sum = np.sum([group2alpha[group]["nonlocal"] for group in uniquegroups])
+        for group, _ in group2alpha.items():
+            norm_NL = _["nonlocal"]/un_norm_NL_sum
+            norm_L = (1-norm_NL)
+            group2alpha[group] = {"local":norm_L, "nonlocal":norm_NL}
+   
         print("Group2Alpha: ", group2alpha)
         for i in self.graph.nodes():
             self.walk_alpha_pr[i] = group2alpha[self.node_attrs[i]]

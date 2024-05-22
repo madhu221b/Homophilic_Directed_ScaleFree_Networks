@@ -5,15 +5,16 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
+import copy
 
 try:
   from .walker import Walker
 except Exception as error:
     from walker import Walker
 
-class InDegreeVaryBetaWalker(Walker):
+class NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV3(Walker):
     def __init__(self,graph,beta=0,workers=1,dimensions=64,walk_len=10,num_walks=200):
-        print(" Adaptive Alpha In Degree Walker with varying beta: ", beta)
+        print("beepbopv3  Non Local Adaptive In Degree Walker with beta = {} & Local InDegree".format(beta))
         super().__init__(graph, workers=workers,dimensions=dimensions,walk_len=walk_len,num_walks=num_walks)
 
         self.number_of_nodes = self.graph.number_of_nodes()
@@ -22,7 +23,6 @@ class InDegreeVaryBetaWalker(Walker):
 
         # Populate nodes by group
         self._get_group_to_node_dict()
-
 
         
         # Transition Prs matrix
@@ -34,15 +34,23 @@ class InDegreeVaryBetaWalker(Walker):
         for node in self.graph.nodes():
             self.d_graph[node] = dict()
             for w_type in walk_types:
-                self.d_graph[node][w_type] = {"pr":list(), "ngh":list()}
+                if w_type == "nonlocal":
+                   self.d_graph[node][w_type] = {"pr":list(), "ngh":list()}
+                elif w_type == "local":
+                    self.d_graph[node][w_type] = {"pr":dict(), "ngh":dict()}
+                    for group in self.groups:
+                          self.d_graph[node][w_type]["pr"][group] = list()
+                          self.d_graph[node][w_type]["ngh"][group] = list()
     
         degree = dict(self.graph.in_degree()) # note now it is indegree
         self.indegree_df = pd.DataFrame.from_dict(degree, orient='index', columns=['degree'])
         degree_pow = dict({node: (np.round(degree**beta,5) if degree != 0 else 0) for node, degree in degree.items()})
+        
         self.degree_pow_df = pd.DataFrame.from_dict(degree_pow, orient='index', columns=['degree_pow'])
-
-
-
+        
+        # computing local group prs
+        print("!!!! Computing Local Group Selection probability")
+        self.group2pr = self._get_group_selection_prs()
         # compute probabilities
         print("!!!! Computing non-local jump probability")
         self.walk_alpha_pr = dict()
@@ -51,7 +59,7 @@ class InDegreeVaryBetaWalker(Walker):
         print("!!!!  Computing Probability Matrix")
         self._precompute_probabilities()
         print("!!!!  Generate Walks")
-        self._generate_walks(self.graph, self.d_graph, self.walk_alpha_pr)
+        self._generate_walks(self.graph, self.d_graph, self.walk_alpha_pr,self.group2pr)
     
 
     def _get_group_to_node_dict(self):
@@ -61,6 +69,37 @@ class InDegreeVaryBetaWalker(Walker):
                 self.group2node[node_id] = list()
             self.group2node[node_id].append(node)
     
+    def _get_group_selection_prs(self):
+        group_dict = dict()
+        local_walk_dict = dict()
+
+
+        for group in self.groups:
+            o_g_g = self.avg_outdegree_due_to_itself(group)
+            o_g_gbar = self.avg_outdegree_to_grp_dict(group)
+            o_g_gbar.update({group:o_g_g})
+           
+            if group not in group_dict: group_dict[group] = {"groups":[], "pr":[]}
+            for k,v in o_g_gbar.items():
+                homo = self.avg_outdegree_due_to_itself(k)*self.avg_indegree_due_to_itself(k)*(1-v)
+                group_dict[group]["groups"].append(k)
+                group_dict[group]["pr"].append(homo)
+
+ 
+        self.local_walk_dict = copy.deepcopy(group_dict)
+        
+
+        for group in group_dict:
+            sum_ = np.sum(np.array(group_dict[group]["pr"]))
+            if sum_ != 0:
+              group_dict[group]["pr"] = np.array(group_dict[group]["pr"])/sum_
+            elif sum_ == 0 and len(group_dict[group]["pr"]) == 1:
+              group_dict[group]["pr"] = np.full_like(np.array(group_dict[group]["pr"]), 1)
+            else:
+                group_dict[group]["pr"] = np.full_like(np.array(group_dict[group]["pr"]), 0.5)
+
+        return group_dict
+
     def _get_edge_dict(self):
         g = self.graph
         node_attrs = self.node_attrs
@@ -70,7 +109,7 @@ class InDegreeVaryBetaWalker(Walker):
             label = "{}->{}".format(node_attrs[u],node_attrs[v])
             if label not in edge_dict: edge_dict[label] = 0
             edge_dict[label] += 1
-
+        
         return edge_dict
    
     def _compute_homophily(self):
@@ -204,10 +243,9 @@ class InDegreeVaryBetaWalker(Walker):
 
             same_dict[uniquegroup] = { "out_i":out_i, "in_i":in_i,
                                        "out_g": out_g, "in_g":in_g }
-            
 
-        for uniquegroup in uniquegroups:
-        
+
+        for uniquegroup in uniquegroups:        
             u_dict = self.avg_outdegree_to_grp_dict(uniquegroup)
             v_dict = self.avg_indegree_to_grp_dict(uniquegroup)
             print("u_dict: {}, v_dict: {}".format(u_dict,v_dict))
@@ -217,22 +255,15 @@ class InDegreeVaryBetaWalker(Walker):
                 term1 = q_in_gbar * same_dict[uniquegroup]["out_i"]
                 term2 = q_out_gbar * same_dict[uniquegroup]["in_i"]
                 un_norm_NL += (term1+term2)
-            
+  
             if len(u_dict):
                 un_norm_NL = un_norm_NL/len(u_dict)
-         
-
 
             # same_dict_grp = {k:v for k,v in same_dict.items() if k != uniquegroup}
             len_ = len(same_dict)
-            
-            un_norm_L  = 0
-            for k, sub_dict in same_dict.items():
-                u = sub_dict["out_i"]
-                v = sub_dict["in_i"]
-                un_norm_L += (u*v)
-                
-            un_norm_L = un_norm_L/len_
+            print("!!", self.local_walk_dict[uniquegroup])
+            un_norm_L  = np.sum(self.local_walk_dict[uniquegroup]["pr"])
+            # un_norm_L = un_norm_L/len(self.local_walk_dict[uniquegroup]["pr"])
             
             if un_norm_L == 0 and un_norm_NL == 0:
                 un_norm_L = un_norm_NL = 0.5
@@ -268,7 +299,7 @@ class InDegreeVaryBetaWalker(Walker):
             # not already connected to node or is an exisiting successor and is so same identity
             next_succ = [_ for _ in next_succ if _ != node and _ not in successors and self.node_attrs[_]==self.node_attrs[node]]
             non_local_jump_nodes.extend(next_succ)
-
+        
         if len(non_local_jump_nodes) != 0:
             all_nodes = non_local_jump_nodes
         else:        
@@ -276,7 +307,7 @@ class InDegreeVaryBetaWalker(Walker):
             all_nodes = list(set(all_nodes) - set(set(successors) | set([node])))
             
         sample_size = min(len(successors),len(all_nodes))
-        if sample_size == 0: sample_size = k        
+        if sample_size == 0: sample_size = k
         unnormalized_prs = self.degree_pow_df.loc[all_nodes, "degree_pow"]
         unnormalized_prs += 1e-6
         _sum = unnormalized_prs.sum()
@@ -285,20 +316,7 @@ class InDegreeVaryBetaWalker(Walker):
         non_local_nodes = np.random.choice(all_nodes, size=sample_size, p=prs, replace=False)
 
         return non_local_nodes
-     
-    def _precompute_fmdict(self):
-        fm_dict = dict()
-        for i in self.graph.nodes():
-            fm_dict[i] = {group:0 for group in self.groups}
-            successors = list(self.graph.successors(i))
-            if len(successors) != 0:
-                for group in self.groups:
-                    group_succs = len([_ for _ in successors if self.node_attrs[_] == group])
-                    fm_dict[i][group] = group_succs/len(successors)
-        self.fm_dict = fm_dict
- 
-            
-        
+
     def _precompute_probabilities(self):
         for i in self.graph.nodes():
             local_neighbors = list(self.graph.successors(i))
@@ -306,18 +324,20 @@ class InDegreeVaryBetaWalker(Walker):
 
             unnormalized_prs_local = self.degree_pow_df.loc[local_neighbors, "degree_pow"]
             unnormalized_prs_nonlocal = self.degree_pow_df.loc[non_local_neighbors, "degree_pow"]
-
-            if len(local_neighbors) != 0:
-                _sum = 0.0
-                for degree, ngh in zip(unnormalized_prs_local,local_neighbors):
+                        
+            if len(local_neighbors) != 0:           
+                for degree, ngh in zip(unnormalized_prs_local,local_neighbors):  
                     w = self.graph[i][ngh].get(self.weight_key, 1)
-                    num_ = w*degree
-                    # num_ = w
-                    _sum += num_
-                    self.d_graph[i]["local"]["pr"].append(num_)
-                    self.d_graph[i]["local"]["ngh"].append(ngh)
-                
-                self.d_graph[i]["local"]["pr"] = np.array(self.d_graph[i]["local"]["pr"])/_sum
+                    identity = self.node_attrs[ngh]            
+                    unnormalized_wgt = degree
+                    self.d_graph[i]["local"]["pr"][identity].append(w*unnormalized_wgt)
+                    self.d_graph[i]["local"]["ngh"][identity].append(ngh)                   
+            
+                # calculated normalizec weights
+                for group in self.groups:
+                    unnormalized_wgts = self.d_graph[i]["local"]["pr"][group]
+                    sum_ = sum(unnormalized_wgts)
+                    self.d_graph[i]["local"]["pr"][group] = np.array(unnormalized_wgts)/sum_
      
 
             if len(non_local_neighbors) != 0:
@@ -332,33 +352,33 @@ class InDegreeVaryBetaWalker(Walker):
 
 
 
-    def _generate_walks(self, graph, d_graph, walk_alpha_pr) -> list:
+    def _generate_walks(self, graph, d_graph, walk_alpha_pr,group2pr) -> list:
         """
         Generates the random walks which will be used as the skip-gram input.
         :return: List of walks. Each walk is a list of nodes.
         """
 
         flatten = lambda l: [item for sublist in l for item in sublist]
-
+       
         # Split num_walks for each worker
         num_walks_lists = np.array_split(range(self.num_walks), self.workers)
- 
+        
         parallel_generate_walks = self.local_generate_walk
 
         walk_results = Parallel(n_jobs=self.workers)(
-            delayed(parallel_generate_walks)(graph, d_graph,walk_alpha_pr, idx, len(num_walks))
+            delayed(parallel_generate_walks)(graph, d_graph,walk_alpha_pr,group2pr, idx, len(num_walks))
                                         for idx, num_walks
             in enumerate(num_walks_lists, 1))
 
         walks = flatten(walk_results)
         self.walks = walks
 
-    def local_generate_walk(self, graph, d_graph, walk_alpha_pr, cpu_num, num_walks):
+    def local_generate_walk(self, graph, d_graph, walk_alpha_pr,group2pr, cpu_num, num_walks):
         walks = list()
         pbar = tqdm(total=num_walks, desc='Generating walks (CPU: {})'.format(cpu_num))
         possible_walks = ["local", "nonlocal"]
         # walks_pr = [1-alpha, alpha] # pr of selecting high degree nodes, low degree nodes
-
+        
         for n_walk in range(num_walks):
             # random_group = np.random.choice(possible_walks, p=walks_pr, size=1)[0]
             pbar.update(1)
@@ -373,17 +393,27 @@ class InDegreeVaryBetaWalker(Walker):
                 # alpha = walk_alpha_pr[source]
                 # walks_pr = [1-alpha, alpha]
                 walks_pr = [walk_alpha_pr[source][possible_walks[0]], walk_alpha_pr[source][possible_walks[1]]]
-                random_group = np.random.choice(possible_walks, p=walks_pr, size=1)[0]
+                random_walk_group = np.random.choice(possible_walks, p=walks_pr, size=1)[0]
                 
                 while len(walk) < self.walk_len:
                        last_node = walk[-1]
-                       walkgroups = [group for group in possible_walks if len(d_graph[last_node][group]["pr"]) > 0]
+                    #    walkgroups = [group for group in possible_walks if len(d_graph[last_node][group]["pr"]) > 0]
                        
+                    #    if random_walk_group not in walkgroups: break
                        
-                       if random_group not in walkgroups: break
+                       if random_walk_group == "local":
 
-                       walk_options = list(d_graph[last_node][random_group]["ngh"])
-                       probabilities = d_graph[last_node][random_group]["pr"]
+                            all_possible_groups = group2pr[self.node_attrs[last_node]]["groups"]
+                            all_possible_prs = group2pr[self.node_attrs[last_node]]["pr"]
+                            random_group = np.random.choice(all_possible_groups,p=all_possible_prs,size=1)[0]
+                           
+                            walk_options = list(d_graph[last_node][random_walk_group]["ngh"][random_group])
+                            probabilities = d_graph[last_node][random_walk_group]["pr"][random_group]
+                       else:
+                            walk_options = list(d_graph[last_node][random_walk_group]["ngh"])
+                            probabilities = d_graph[last_node][random_walk_group]["pr"]
+                       
+                       if len(walk_options) == 0: break
                        next_node = np.random.choice(walk_options, size=1, p=probabilities)[0]
                        walk.append(next_node)
 

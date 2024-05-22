@@ -28,11 +28,14 @@ label_dict = {
 "nlindlocalind_alpha_0.3_beta_2.0": r"$\alpha=0.3$",
 "nlindlocalind_alpha_0.7_beta_2.0": r"$\alpha=0.7$",
 "nlindlocalind_alpha_1.0_beta_2.0": r"$\alpha=1$",
-"beepboop_beta_2.0": "Adaptive " + r"$\alpha$",
-"beepboopv2_beta_2.0": "[NEW] Adaptive " + r"$\alpha$",
-"indegree_beta_2.0": "indegree",
+"beepboop_beta_2.0": "[OLD] Adapt " + r"$\alpha$",
+"beepboopv2_beta_2.0": "Adaptive " + r"$\alpha$",
+# "indegreevarybeta_beta_2.0": "Adaptive " + r"$\alpha$", 
+"indegreevarybetav2_beta_2.0": "Adaptive " + r"$\alpha$", # newest
+"beepboopv3_beta_2.0": "Fair Adapt" + r"$\alpha$",
+"indegree_beta_2.0": "Indegree",
 "n2v_p_1.0_q_1.0": "n2v",
-"fw_p_1.0_q_1.0": "fw"
+"fw_p_1.0_q_1.0": "Fairwalk"
 }
 
 if os.environ.get('DISPLAY','') == '':
@@ -1031,8 +1034,8 @@ def get_diff_of_rate(hmm):
 
     main_directory = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/"
     
-    models = ["fw_p_1.0_q_1.0", "indegree_beta_2.0"]
-    
+    # models = ["fw_p_1.0_q_1.0", "indegree_beta_2.0"]
+    models = ["fw_p_1.0_q_1.0", "beepboopv2_beta_2.0"]
     for i, model in enumerate(models):
         res_dict = dict()
         for hMM in hMM_list:
@@ -1221,12 +1224,8 @@ def print_visibility(file_name):
         return dict()
     g = read_graph(file_name)
     vis_dict = dict() 
-    if "rice" in file_name or "fm" in file_name or "syn_2" in file_name: 
-        groups = [0,1]
-    elif "facebook_locale" in file_name:
-        groups = [126,127,278]
-    elif "twitter" in file_name or "facebook" in file_name:
-        groups = [0,1,2]
+    groups = list(set(nx.get_node_attributes(g, "group").values()))
+    print("groups:", groups)
     
     # elif "twitter" in file_name: min_grp, maj_grp = 2, 1
     cent_file = file_name.replace(".gpickle","") + ".pkl"
@@ -1239,10 +1238,11 @@ def print_visibility(file_name):
         print("Loading cent file: ", cent_file)
         with open(cent_file,"rb") as f:
               centrality_dict = pkl.load(f)
-
+    # print(centrality_dict)
     for group in groups:
         avg_bet = get_avg_group_centrality(g,centrality_dict,group=group)
         vis_dict[group] = avg_bet
+    print("vis dict returned: ", vis_dict)
     return vis_dict
 
 def print_fairness(file_name):
@@ -1252,12 +1252,8 @@ def print_fairness(file_name):
         return dict()
     g = read_graph(file_name)
     fairness_dict = dict() 
-    if "rice" in file_name or "fm" in file_name or "syn_2" in file_name: 
-        groups = [0,1]
-    elif "facebook_locale" in file_name:
-        groups = [126,127,278]
-    elif "twitter" in file_name or "facebook" in file_name:
-        groups = [0,1,2]
+    groups = list(set(nx.get_node_attributes(g, "group").values()))
+    
 
     cent_file = file_name.replace(".gpickle","") + ".pkl"
     if not os.path.exists(cent_file):
@@ -1394,45 +1390,53 @@ def plot_utility_metrics(ds="rice",models=[]):
     width = 0.2  # the width of the bars
     multiplier = 0
     fig, ax = plt.subplots()
-    # seed_list =  [42,420,4200]
-    seed_list = [42]
+    seed_list =  [42,420,4200]
+    # seed_list = [42]
 
-    # plot_dict = {"precision":[], "recall":[], "accuracy":[], "auc":[]}
-    plot_dict = {"auc":[]}
+    plot_dict = {"precision":[], "recall":[], "auc":[]}
+    std_dict = {"precision":[], "recall":[], "auc":[]}
     for model in models:
-        avg_pre, avg_recall, avg_acc, avg_auc = 0, 0, 0, 0
+        pre_list, recall_list, auc_list = [],[],[]
         for seed in seed_list:
             file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_{}_name_{}/seed_{}/_name{}.pkl".format(model,ds,seed,ds)
             pre, recall, acc, auc = print_utility(file_name)
-            # avg_pre += pre
-            # avg_recall += recall
-            # avg_acc += acc
-            avg_auc += auc
-        # avg_pre /= len(seed_list)
-        # avg_recall /= len(seed_list)
-        # avg_acc /= len(seed_list)
-        avg_auc /= len(seed_list)
-        # plot_dict["precision"].append(avg_pre)
-        # plot_dict["recall"].append(avg_recall)
-        # plot_dict["accuracy"].append(avg_acc)
+            pre_list.append(pre)
+            recall_list.append(recall)
+            auc_list.append(auc)
+
+        avg_pre = np.mean(pre_list)
+        std_pre = np.std(pre_list)
+
+        avg_recall = np.mean(recall_list)
+        std_recall = np.std(recall_list)
+
+        avg_auc = np.mean(auc_list)
+        std_auc = np.std(auc_list)
+        plot_dict["precision"].append(avg_pre)
+        std_dict["precision"].append(std_pre)
+
+        plot_dict["recall"].append(avg_recall)
+        std_dict["recall"].append(std_recall)
+
         plot_dict["auc"].append(avg_auc)
+        std_dict["auc"].append(std_auc)
 
     for label, val in plot_dict.items():
+            if label != "auc": continue
             offset = width * multiplier
             rects = ax.bar(x + offset, val, width, label=label)
-            ax.bar_label(rects, padding=3)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
+            ax.bar_label(rects, padding=4)
             multiplier += 1
 
 
     ax.set_ylabel('Utility Metrics')
     ax.set_xticks(x + width, labels)
-    ax.legend(loc='upper left', ncols=3)
+    ax.legend(loc='upper right', ncols=3)
     ax.set_ylim(0, 1.1)
     fig.savefig("utility_barplot_{}.png".format(ds),bbox_inches='tight')
 
-def plot_utility_metrics_syn(syn_ds,models):
-    fm = 0.3
-    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+def plot_utility_metrics_syn(syn_ds,models,fm=0.3):
     labels = [label_dict.get(model, model) for model in models]
     x = np.arange(len(models))  # the label locations
     width = 0.2  # the width of the bars
@@ -1441,31 +1445,45 @@ def plot_utility_metrics_syn(syn_ds,models):
     seed_list =  [42,420,4200]
     # seed_list =  [42]
 
-    # plot_dict = {"precision":[], "recall":[], "accuracy":[], "auc":[]}
-    plot_dict = {"auc":[]}
+    plot_dict = {"precision":[], "recall":[], "auc":[]}
+    std_dict = {"precision":[], "recall":[], "auc":[]}
+    # plot_dict = {"auc":[]}
+    # std_dict = {"auc":[]}
     for config in syn_ds:
         hMM, hmm = config.split(",")
         for model in models:
-            avg_pre, avg_recall, avg_acc, avg_auc = 0, 0, 0, 0
+            pre_list, recall_list, auc_list = [],[],[]
             for seed in seed_list:
                 file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/utility/model_{}_fm_{}/seed_{}/_hMM{}_hmm{}.pkl".format(model,fm,seed,hMM,hmm)
                 pre, recall, acc, auc = print_utility(file_name)
-                # avg_pre += pre
-                # avg_recall += recall
-                # avg_acc += acc
-                avg_auc += auc
+                pre_list.append(pre)
+                recall_list.append(recall)
+                auc_list.append(auc)
             # avg_pre /= len(seed_list)
             # avg_recall /= len(seed_list)
             # avg_acc /= len(seed_list)
-            avg_auc /= len(seed_list)
-            # plot_dict["precision"].append(avg_pre)
-            # plot_dict["recall"].append(avg_recall)
-            # plot_dict["accuracy"].append(avg_acc)
+
+            avg_pre = np.mean(pre_list)
+            std_pre = np.std(pre_list)
+
+            avg_recall = np.mean(recall_list)
+            std_recall = np.std(recall_list)
+
+            avg_auc = np.mean(auc_list)
+            std_auc = np.std(auc_list)
+            plot_dict["precision"].append(avg_pre)
+            std_dict["precision"].append(std_pre)
+
+            plot_dict["recall"].append(avg_recall)
+            std_dict["recall"].append(std_recall)
+
             plot_dict["auc"].append(avg_auc)
+            std_dict["auc"].append(std_auc)
 
     for label, val in plot_dict.items():
             offset = width * multiplier
             rects = ax.bar(x + offset, val, width, label=label)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
             ax.bar_label(rects, padding=3)
             multiplier += 1
 
@@ -1474,10 +1492,10 @@ def plot_utility_metrics_syn(syn_ds,models):
     ax.set_xticks(x + width,labels)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(0, 1.1)
-    fig.savefig("utility_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+    fig.savefig("utility_barplot_{}_fm{}.png".format(syn_ds[0],fm),bbox_inches='tight')
 
 
-def plot_fair_metrics(ds="rice",models=[]):
+def plot_fair_metrics(ds="rice",models=[],t=29):
     # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0","indegree_beta_-2.0","indegree_beta_0.0", "fw_p_1.0_q_1.0"]
     # models = ["nllindegreelocalrandom_alpha_0.0_beta_2.0","nllindegreelocalrandom_alpha_0.3_beta_2.0","nllindegreelocalrandom_alpha_0.5_beta_2.0","nllindegreelocalrandom_alpha_0.7_beta_2.0","nllindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
     # models =["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
@@ -1486,30 +1504,38 @@ def plot_fair_metrics(ds="rice",models=[]):
     width = 0.25  # the width of the bars
     multiplier = 0
     fig, ax = plt.subplots()
-    # seed_list =  [42,420,4200]
-    seed_list = [42]
+    seed_list =  [42,420,4200]
+    # seed_list = [42]
 
     plot_dict = dict()
+    std_dict = dict()
     
     for model in models:
         vis_list = []
         for seed in seed_list:
-            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_{}.gpickle".format(model,ds,seed,model,ds,t)
+            print(file_name)
             vis_dict = print_visibility(file_name)
             # print(vis_dict)
             vis_list.append(vis_dict)
-
-        # print(vis_list)   
+  
         keys = vis_list[0].keys()
+        print(keys, model)
         for key in keys:
             arr = [_[key] for _ in vis_list]
-            avg_vis = np.mean(arr)
-            if key not in plot_dict: plot_dict[key] = list()
+            avg_vis, std_vis = np.mean(arr), np.std(arr)
+            if key not in plot_dict: 
+                plot_dict[key] = list()
+                std_dict[key] = list()
             plot_dict[key].append(avg_vis)
+            std_dict[key].append(std_vis)
   
     for label, val in plot_dict.items():
             offset = width * multiplier
+            print(x)
+            print(val)
             rects = ax.bar(x + offset, val, width, label=label)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
             # ax.bar_label(rects, padding=3)
             multiplier += 1
 
@@ -1518,14 +1544,13 @@ def plot_fair_metrics(ds="rice",models=[]):
     ax.set_xticks(x + width, labels)
     ax.legend(loc='upper left', ncols=3)
     if ds == "rice": llim, uplim = 0,0.004
+    elif ds == "twitter_climate": llim, uplim = 0,0.005
     else: llim, uplim = 0, 0.0025
     ax.set_ylim(llim,uplim)
-    fig.savefig("vis_barplot_{}.png".format(ds),bbox_inches='tight')
+    fig.savefig("vis_barplot_{}_{}.png".format(ds,t),bbox_inches='tight')
 
-def plot_fair_metrics_syn(syn_ds,models):
-    fm = 0.3
-    # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
-    # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+def plot_fair_metrics_syn(syn_ds,models,fm=0.3):
+    config = syn_ds[0]
     labels = [label_dict.get(model, model) for model in models]
     x = np.arange(len(models))  # the label locations
     width = 0.2  # the width of the bars
@@ -1535,27 +1560,33 @@ def plot_fair_metrics_syn(syn_ds,models):
     # seed_list =  [42]
 
     plot_dict = dict() 
-    for config in syn_ds:
-        hMM, hmm = config.split(",")
-        for model in models:
-            vis_list = []
-            for seed in seed_list:
-               file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}/{}-N1000-fm{}-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,fm,seed,model,fm,hMM,hmm)
-               vis_dict = print_visibility(file_name)
-               vis_list.append(vis_dict)
+    std_dict = dict()
+    
+    hMM, hmm = config.split(",")
+    
+    for model in models:
+        vis_list = []
+        for seed in seed_list:
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_fm_{}/seed_{}/{}-N1000-fm{}-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,fm,seed,model,fm,hMM,hmm)
+            vis_dict = print_visibility(file_name)
+            vis_list.append(vis_dict)
 
    
-            keys = vis_list[0].keys()
-            for key in keys:
-                arr = [_[key] for _ in vis_list]
-                avg_vis = np.mean(arr)
-                if key not in plot_dict: plot_dict[key] = list()
-                plot_dict[key].append(avg_vis)
-  
+        keys = vis_list[0].keys()
+        for key in keys:
+            arr = [_[key] for _ in vis_list]
+            avg_vis = np.mean(arr)
+            std_vis = np.std(arr)
+            if key not in plot_dict: 
+                plot_dict[key] = list()
+                std_dict[key] = list()
+            plot_dict[key].append(avg_vis)
+            std_dict[key].append(std_vis)
+    print(plot_dict, std_dict)
     for label, val in plot_dict.items():
             offset = width * multiplier
             rects = ax.bar(x + offset, val, width, label=label)
-            # ax.bar_label(rects, padding=3)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
             multiplier += 1
 
 
@@ -1563,10 +1594,10 @@ def plot_fair_metrics_syn(syn_ds,models):
     ax.set_xticks(x + width,labels)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(0, 0.004)
-    fig.savefig("vis_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+    fig.savefig("vis_barplot_{}_fm{}.png".format(config,fm),bbox_inches='tight')
 
 
-def plot_fair_metrics_v2(ds="rice",models=[]):
+def plot_fair_metrics_v2(ds="rice",models=[],t=29):
     # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "indegree_beta_-2.0", "indegree_beta_0.0", "fw_p_1.0_q_1.0"]
     # models = ["nllindegreelocalrandom_alpha_0.0_beta_2.0","nllindegreelocalrandom_alpha_0.3_beta_2.0","nllindegreelocalrandom_alpha_0.5_beta_2.0","nllindegreelocalrandom_alpha_0.7_beta_2.0","nllindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
     # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
@@ -1575,15 +1606,15 @@ def plot_fair_metrics_v2(ds="rice",models=[]):
     width = 0.25  # the width of the bars
     multiplier = 0
     fig, ax = plt.subplots()
-    # seed_list =  [42,420,4200]
-    seed_list = [42]
+    seed_list =  [42,420,4200]
+    # seed_list = [42]
 
     plot_dict = dict()
-    
+    std_dict = dict()
     for model in models:
         fair_list = []
         for seed in seed_list:
-            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_29.gpickle".format(model,ds,seed,model,ds)
+            file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_{}_name_{}/seed_{}/_{}-name_{}_t_{}.gpickle".format(model,ds,seed,model,ds,t)
             fair_dict = print_fairness(file_name)
             fair_list.append(fair_dict)
             fair_list.append(fair_dict)
@@ -1593,12 +1624,17 @@ def plot_fair_metrics_v2(ds="rice",models=[]):
         for key in keys:
             arr = [_[key] for _ in fair_list]
             avg_fair = np.mean(arr)
-            if key not in plot_dict: plot_dict[key] = list()
+            std_fair = np.std(arr)
+            if key not in plot_dict: 
+                plot_dict[key] = list()
+                std_dict[key] = list()
             plot_dict[key].append(avg_fair)
+            std_dict[key].append(std_fair)
   
     for label, val in plot_dict.items():
             offset = width * multiplier
             rects = ax.bar(x + offset, val, width, label=label)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
             # ax.bar_label(rects, padding=3)
             multiplier += 1
 
@@ -1607,12 +1643,12 @@ def plot_fair_metrics_v2(ds="rice",models=[]):
     ax.set_xticks(x + width, labels)
     ax.legend(loc='upper left', ncols=3)
     if ds == "rice": llim, uplim = -0.004,0.004
+    elif ds == "twitter_climate": llim, uplim = -0.005,0.005
     else: llim, uplim = -0.0025, 0.0025
     ax.set_ylim(llim,uplim)
-    fig.savefig("fair_barplot_{}.png".format(ds),bbox_inches='tight')
+    fig.savefig("fair_barplot_{}_{}.png".format(ds,t),bbox_inches='tight')
 
-def plot_fair_metrics_v2_syn(syn_ds,models):
-    fm = 0.3
+def plot_fair_metrics_v2_syn(syn_ds,models,fm=0.3):
     # models = ["nonlocaladaptivealpha_beta_2.0", "indegree_beta_2.0", "fw_p_1.0_q_1.0"]
     # models = ["nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_0.7_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
     # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
@@ -1625,6 +1661,7 @@ def plot_fair_metrics_v2_syn(syn_ds,models):
     # seed_list = [42]
 
     plot_dict = dict()
+    std_dict = dict()
     for config in syn_ds:
         hMM, hmm = config.split(",")
         for model in models:
@@ -1639,13 +1676,17 @@ def plot_fair_metrics_v2_syn(syn_ds,models):
             for key in keys:
                 arr = [_[key] for _ in fair_list]
                 avg_fair = np.mean(arr)
-                if key not in plot_dict: plot_dict[key] = list()
+                std_fair = np.std(arr)
+                if key not in plot_dict: 
+                    plot_dict[key] = list()
+                    std_dict[key] = list()
                 plot_dict[key].append(avg_fair)
-    
+                std_dict[key].append(std_fair)
+
     for label, val in plot_dict.items():
             offset = width * multiplier
             rects = ax.bar(x + offset, val, width, label=label)
-            # ax.bar_label(rects, padding=3)
+            ax.errorbar(x + offset, val,std_dict[label], fmt='.', color='Black', elinewidth=2,capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
             multiplier += 1
 
 
@@ -1653,7 +1694,7 @@ def plot_fair_metrics_v2_syn(syn_ds,models):
     ax.set_xticks(x + width, labels)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(-0.004, 0.004)
-    fig.savefig("fair_barplot_{}.png".format(syn_ds[0]),bbox_inches='tight')
+    fig.savefig("fair_barplot_{}_fm{}.png".format(syn_ds[0],fm),bbox_inches='tight')
 
 def plot_avg_indegree(model,ds):
     main_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks"
@@ -1669,12 +1710,10 @@ def plot_avg_indegree(model,ds):
             print("same: {}, diff: {}".format(same_,diff_))
 
 def get_prod():
-    graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_facebook_syn_2/seed_42/_fw_p_1.0_q_1.0-name_facebook_syn_2_t_29.gpickle"
-    dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_facebook_syn_2/seed_42/_fw_p_1.0_q_1.0-name_facebook_syn_2_t_29.pkl"
 
-    # graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fairindegree_beta_2.0_name_facebook_syn_2/seed_42/_fairindegree_beta_2.0-name_facebook_syn_2_t_29.gpickle"
-    # dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fairindegree_beta_2.0_name_facebook_syn_2/seed_42/_fairindegree_beta_2.0-name_facebook_syn_2_t_29.pkl"
-
+    graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_beepboopv2_beta_2.0_name_facebook_syn_2/seed_42/_beepboopv2_beta_2.0-name_facebook_syn_2_t_29.gpickle"
+    dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_beepboopv2_beta_2.0_name_facebook_syn_2/seed_42/_beepboopv2_beta_2.0-name_facebook_syn_2_t_29.pkl"
+    print("Graph Path: ", graph_path)
     g = nx.read_gpickle(graph_path)
     node_attrs = nx.get_node_attributes(g, "group")
     groups = list(set(node_attrs.values()))
@@ -1701,9 +1740,187 @@ def get_prod():
         
         hetero = all_val/all_num
 
-        print("Group: {}, ({})".format(group,hetero-homo))
+        print("Group: {}, hetero: {}, homo: {}".format(group,hetero,homo))
 
-           
+def get_prod_all():
+    ds = "rice"
+    # graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_{}/seed_42/_fw_p_1.0_q_1.0-name_{}_t_29.gpickle".format(ds,ds)
+    # dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_fw_p_1.0_q_1.0_name_{}/seed_42/_fw_p_1.0_q_1.0-name_{}_t_29.pkl".format(ds,ds)
+
+    graph_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_beepboopv2_beta_2.0_name_{}/seed_42/_beepboopv2_beta_2.0-name_{}_t_29.gpickle".format(ds,ds)
+    dict_path = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_beepboopv2_beta_2.0_name_{}/seed_42/_beepboopv2_beta_2.0-name_{}_t_29.pkl".format(ds,ds)
+    print("Graph Path: ", graph_path)
+    g = nx.read_gpickle(graph_path)
+    node_attrs = nx.get_node_attributes(g, "group")
+    groups = list(set(node_attrs.values()))
+    with open(dict_path,"rb") as f:
+        cent = pkl.load(f)
+
+    
+    res_dict = {"hetero": {"prod":0, "num":0},
+               "homo": {"prod":0, "num":0},}
+    for u,v in g.edges():
+            prod = cent[u]*cent[v]
+            if node_attrs[u] != node_attrs[v]: label = "hetero"
+            else: label = "homo"
+  
+            res_dict[label]["prod"] += prod
+            res_dict[label]["num"] += 1
+
+    res_dict = {k:v["prod"]/v["num"] for k,v in res_dict.items()}
+    print(res_dict)
+
+def avg_indegree_due_to_itself(g, grp):
+        node_attrs = nx.get_node_attributes(g,"group")
+        itr = [node for node, _ in node_attrs.items() if _ == grp]
+        total_len = len(itr)
+        sum_ = 0
+        total_sum_ = 0
+        for i in itr:      
+            neighbors = list(g.predecessors(i))
+            diff_nghs = len([ngh for ngh in neighbors if node_attrs[ngh] == grp])
+            sum_ += diff_nghs
+            total_sum_ += len(neighbors)
+        if total_sum_ == 0: return sum_
+        avg_indg = sum_/total_sum_
+        return avg_indg
+
+def avg_outdegree_due_to_itself(g, grp):
+        node_attrs = nx.get_node_attributes(g,"group")
+        itr = [node for node, _ in node_attrs.items() if _ == grp]
+        total_len = len(itr)
+        sum_ = 0
+        total_sum_ = 0
+        for i in itr:      
+            neighbors = list(g.successors(i))
+            diff_nghs = len([ngh for ngh in neighbors if node_attrs[ngh] == grp])
+            sum_ += diff_nghs
+            total_sum_ += len(neighbors)
+        if total_sum_ == 0: return sum_
+        avg_outdg = sum_/total_sum_
+        return avg_outdg
+
+def avg_outdegree_to_grp_dict(g, grp):
+        node_attrs = nx.get_node_attributes(g,"group")
+        itr = [node for node, _ in node_attrs.items() if _ == grp]
+        total_len = len(itr)
+        sum_ = 0
+        total_sum_ = 0
+        out_dict = dict()
+
+        for i in itr:      
+            neighbors = list(g.successors(i))
+            diff_nghs = [ngh for ngh in neighbors if node_attrs[ngh] != grp]
+            
+            for diff_ngh in diff_nghs:
+                id_ = node_attrs[diff_ngh]
+                if id_ not in out_dict: out_dict[id_] = 0
+                out_dict[id_] += 1 
+            
+            total_sum_ += len(neighbors)
+        
+        avg_outdg = {k:v if v==0 else v/total_sum_ for k,v in out_dict.items()}
+        return avg_outdg
+
+def avg_indegree_to_grp_dict(g, grp):
+        node_attrs = nx.get_node_attributes(g,"group")
+        itr = [node for node, _ in node_attrs.items() if _ == grp]
+        total_len = len(itr)
+        sum_ = 0
+        total_sum_ = 0
+        in_dict = dict()
+
+        for i in itr:      
+            neighbors = list(g.predecessors(i))
+            diff_nghs = [ngh for ngh in neighbors if node_attrs[ngh] != grp]
+            
+            for diff_ngh in diff_nghs:
+                id_ = node_attrs[diff_ngh]
+                if id_ not in in_dict: in_dict[id_] = 0
+                in_dict[id_] += 1 
+            
+            total_sum_ += len(neighbors)
+        
+        avg_indg = {k:v if v==0 else v/total_sum_ for k,v in in_dict.items()}
+        return avg_indg
+
+def get_heg(g):
+    hete_dict = dict()
+    node_attrs = nx.get_node_attributes(g,"group")
+    uniquegroups = list(set(node_attrs.values()))
+    for group in uniquegroups:
+        i_dict = avg_indegree_to_grp_dict(g,group)
+        o_dict = avg_indegree_to_grp_dict(g,group)
+        i_gg = avg_indegree_due_to_itself(g,group)
+        o_gg = avg_outdegree_due_to_itself(g,group)
+
+        he_g = 0     
+        for k, v in i_dict.items():
+            g_bar = k
+            q_in_gbar_to_g = v
+            q_out_g_to_gbar = o_dict[g_bar]
+            he_t = q_in_gbar_to_g * o_gg
+            he_b = i_gg * q_out_g_to_gbar
+            he_g_gbar = (he_t+he_b)
+            he_g += he_g_gbar
+
+        hete_dict[group] = he_g/len(i_dict)
+    
+    return hete_dict
+
+def get_hog(g):
+    homo_dict = dict()
+    node_attrs = nx.get_node_attributes(g,"group")
+    uniquegroups = list(set(node_attrs.values()))
+    for group in uniquegroups:
+        i_gg = avg_indegree_due_to_itself(g,group)
+        o_gg = avg_outdegree_due_to_itself(g,group)
+        h_gg = i_gg*o_gg
+        homo_dict[group] = h_gg
+    return homo_dict
+
+def plot_heg_hog(hMM,hmm):
+    fig, ax = plt.subplots(nrows=1, ncols=1) 
+    cmap = "coolwarm"
+    norm = plt.Normalize(-0.004, 0.004)
+
+    models = ["fw_p_1.0_q_1.0","indegreevarybetav2_beta_2.0"] 
+    colors = {0:"#ffa700",1:"#0057e7"}
+    linestyle = {models[0]:"dashed",models[1]:"solid"}
+    marker = {0:"^", 1:"o"}
+    group_dict = {0:"M", 1:"m"}
+
+    for model in models:
+        path =  "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/{}_fm_0.3/{}-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM{}-hmm{}_t_29.gpickle".format(model,model,hMM,hmm)
+        fair_dict = print_fairness(path)
+        g = read_graph(path)
+        node_attrs = nx.get_node_attributes(g,"group")
+        uniquegroups = list(set(node_attrs.values()))
+        homo_dict = get_hog(g)
+        hete_dict = get_heg(g)
+        xs = [homo_dict[g] for g in uniquegroups]
+        ys = [hete_dict[g] for g in uniquegroups]
+        c = [colors[g] for g in uniquegroups]
+        marker =  [marker[g] for g in uniquegroups]
+        print("~~ model : {}, homo dict: {}".format(model,homo_dict))
+        print("~~ model : {}, hete dict: {}".format(model,hete_dict))
+
+        ax.plot(xs,ys,label=label_dict[model],color="#abb4bb",linestyle=linestyle[model])
+        for g in uniquegroups:
+            ax.scatter(homo_dict[g],hete_dict[g],marker=marker[g],c=fair_dict[g], cmap=cmap,norm=norm,label=group_dict[g])
+
+    ax.set_xlabel("Homophilic Activity of Group g "+r"$h_o(g)$")
+    ax.set_ylabel("Heterophilic Activity of Group g "+r"$h_e(g)$")
+    ax.set_ylim(-0.05,1)
+    ax.set_xlim(0,1)
+    ax.legend(loc = "upper right",bbox_to_anchor=(1.0,1.0))
+    smap = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cb = fig.colorbar(smap, ax=ax, fraction=0.1, shrink = 0.8, orientation="horizontal",ticks=[-0.004, 0, 0.004]) 
+ 
+    fig.savefig('plots/heghog_hMM{}_hmm{}.png'.format(hMM,hmm),bbox_inches='tight')   # save the figure to file
+    plt.close(fig)    # close the figure window
+        
+             
 
 if __name__ == "__main__":
     # model = "levy_alpha_-1.0"
@@ -1749,8 +1966,8 @@ if __name__ == "__main__":
     # hMM = 1.0
     # get_diff_of_rate_v2(hMM)
      
-    #  hmm = 0.0
-    #  get_diff_of_rate(hmm)
+    # hmm = 1.0
+    # get_diff_of_rate(hmm)
     
     # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/DPAH_fm_0.3/DPAH-N1000-fm0.3-d0.03-ploM2.5-plom2.5-hMM0.0-hmm0.0-ID0.gpickle"
     # diff = print_centrality(file_name)
@@ -1784,25 +2001,27 @@ if __name__ == "__main__":
    # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_rice/seed_42/_nonlocaladaptivealpha_beta_2.0-name_rice_t_29.gpickle"
     # file_name = "/home/mpawar/Homophilic_Directed_ScaleFree_Networks/model_nonlocaladaptivealpha_beta_2.0_name_twitter/seed_42/_nonlocaladaptivealpha_beta_2.0-name_twitter_t_29.gpickle"
     
-    # ds = "facebook_syn_2"
-
-    # # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0"]
-    # # models =  ["nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_0.7_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0"]
-    # # models = ["n2v_p_1.0_q_1.0","indegree_beta_2.0","nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
-    # # models = ["n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0","indegree_beta_2.0","beepboopv2_beta_2.0"]
-    # models = ["fw_p_1.0_q_1.0","fairindegree_beta_2.0","beepboop_beta_2.0","beepboopv2_beta_2.0","beepboopv3_beta_2.0"]
-    # plot_fair_metrics(ds=ds,models=models)
-    # plot_fair_metrics_v2(ds=ds,models=models)
+    ds = "twitter_climate"
+    # # # models = ["nlindlocalind_alpha_0.0_beta_2.0","nlindlocalind_alpha_0.3_beta_2.0","nlindlocalind_alpha_0.5_beta_2.0","nlindlocalind_alpha_0.7_beta_2.0","nlindlocalind_alpha_1.0_beta_2.0"]
+    # # # models =  ["nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_0.7_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0"]
+    # # # models = ["n2v_p_1.0_q_1.0","indegree_beta_2.0","nonlocalindegreelocalrandom_alpha_0.0_beta_2.0","nonlocalindegreelocalrandom_alpha_0.3_beta_2.0","nonlocalindegreelocalrandom_alpha_0.5_beta_2.0","nonlocalindegreelocalrandom_alpha_1.0_beta_2.0", "fw_p_1.0_q_1.0"]
+    # # # models = ["n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0","indegree_beta_2.0","beepboopv2_beta_2.0"]
+    # # models = ["n2v_p_1.0_q_1.0","fw_p_1.0_q_1.0","beepboop_beta_2.0","beepboopv2_beta_2.0","beepboopv3_beta_2.0","beepboopv4_beta_2.0"]
+    # models = ["fw_p_1.0_q_1.0","indegreevarybetav2_beta_2.0"]
+    # t = 29
+    # plot_fair_metrics(ds=ds,models=models,t=t)
+    # plot_fair_metrics_v2(ds=ds,models=models,t=t)
     # plot_utility_metrics(ds=ds,models=models)
-   
+    
+    plot_heg_hog(hMM=0.6,hmm=1.0)
 #    ["0.2,0.2"],["0.8,0.2"],["0.2,0.8"],["0.8,0.8"]
-    # for syn_ds in [["0.2,0.2"],["0.2,0.8"],["0.8,0.2"],["0.8,0.8"]]:
-    #     plot_fair_metrics_syn(syn_ds,models)
-    #     plot_fair_metrics_v2_syn(syn_ds,models)
-    #     plot_utility_metrics_syn(syn_ds,models)
+    # for syn_ds in [["0.2,0.2"]]:
+    #     plot_fair_metrics_syn(syn_ds,models,fm=0.3)
+    #     plot_fair_metrics_v2_syn(syn_ds,models,fm=0.3)
+    #     plot_utility_metrics_syn(syn_ds,models,fm=0.3)
    ## plot_avg_indegree(models[-1],"facebook_locale")
 
-   get_prod()
+#    get_prod_all()
         
 
 

@@ -34,7 +34,7 @@ class InDegreeWalker(Walker):
             neighbors = list(self.graph.successors(i))
        
             if len(neighbors) != 0: # denominator is non zero
-                _sum = 0
+                _sum = 0.0
                 for (_,j) in np.ndenumerate(neighbors):                
                     deg = self.degree_pow[j]
                     w = self.graph[i][j].get(self.weight_key, 1)

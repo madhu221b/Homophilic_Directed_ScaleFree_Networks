@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import networkx as nx
+from community import community_louvain
 
 ds_path = "./data/facebook"
 
@@ -124,8 +125,36 @@ def get_graph(feats):
     if feats[0] == "locale":
        # taking only specific groups
        node_attr = nx.get_node_attributes(g,"group")
-       remove = [node for node,id_ in node_attr.items() if id_ not in [126,127,278]]
+       remove = [node for node,id_ in node_attr.items() if id_ not in [127,126]]
+       g.remove_nodes_from(remove)
+
+       # add 167 more nodes of 126 attribute
+       
+    #    new_nodes = [()]
+    elif feats[0] == "gender":
+       # taking only specific groups
+       node_attr = nx.get_node_attributes(g,"group")
+       remove = [node for node,id_ in node_attr.items() if id_ not in [1,2]]
        g.remove_nodes_from(remove)
     return g
     
-        
+def get_graph_syn(n_comm=2):
+    node_data = list()
+
+    g = nx.DiGraph()
+    edge_data = get_edges()
+    g.add_edges_from(edge_data)
+    
+    print("Synthetic Dataset with {} communities".format(n_comm))
+    partition = community_louvain.best_partition(g.to_undirected())
+    labels = set(partition.values())
+    choices = np.arange(n_comm)
+    for label in labels:
+        choice = np.random.choice(choices)
+        vals = [k for k,v in partition.items() if v==label]
+        sub_list = [(k, {"group":choice}) for k in vals]
+        node_data.extend(sub_list)
+    
+    
+    g.add_nodes_from(node_data)
+    return g

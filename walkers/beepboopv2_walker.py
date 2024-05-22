@@ -6,14 +6,18 @@ import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
+"""
+The non-local pr for jumps is dependent on node identity. And not on individual node's
+local metrics. 
+"""
 try:
   from .walker import Walker
 except Exception as error:
     from walker import Walker
 
-class InDegreeVaryBetaWalker(Walker):
+class NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV2(Walker):
     def __init__(self,graph,beta=0,workers=1,dimensions=64,walk_len=10,num_walks=200):
-        print(" Adaptive Alpha In Degree Walker with varying beta: ", beta)
+        print("beepbopv2  Non Local Adaptive In Degree Walker with beta = {} & Local Random".format(beta))
         super().__init__(graph, workers=workers,dimensions=dimensions,walk_len=walk_len,num_walks=num_walks)
 
         self.number_of_nodes = self.graph.number_of_nodes()
@@ -22,8 +26,6 @@ class InDegreeVaryBetaWalker(Walker):
 
         # Populate nodes by group
         self._get_group_to_node_dict()
-
-
         
         # Transition Prs matrix
         # self.pi = np.zeros((self.number_of_nodes, self.number_of_nodes))
@@ -39,9 +41,8 @@ class InDegreeVaryBetaWalker(Walker):
         degree = dict(self.graph.in_degree()) # note now it is indegree
         self.indegree_df = pd.DataFrame.from_dict(degree, orient='index', columns=['degree'])
         degree_pow = dict({node: (np.round(degree**beta,5) if degree != 0 else 0) for node, degree in degree.items()})
+        
         self.degree_pow_df = pd.DataFrame.from_dict(degree_pow, orient='index', columns=['degree_pow'])
-
-
 
         # compute probabilities
         print("!!!! Computing non-local jump probability")
@@ -73,10 +74,10 @@ class InDegreeVaryBetaWalker(Walker):
 
         return edge_dict
    
-    def _compute_homophily(self):
+    def _compute_homophiily(self):
         g = self.graph
         edge_dict = self._get_edge_dict()
-        groups = self.groups
+        groups = set(self.node_attrs.values())
         homo_dict = dict()
         for uniquegroup in groups:
             denominator = sum([edge_dict["{}->{}".format(uniquegroup,grp)] for grp in groups])
@@ -195,6 +196,7 @@ class InDegreeVaryBetaWalker(Walker):
         edge_dict = self._get_edge_dict()
 
         same_dict = dict()
+
         for uniquegroup in uniquegroups:
             out_i = self.avg_outdegree_due_to_itself(uniquegroup)
             in_i = self.avg_indegree_due_to_itself(uniquegroup)
@@ -205,23 +207,24 @@ class InDegreeVaryBetaWalker(Walker):
             same_dict[uniquegroup] = { "out_i":out_i, "in_i":in_i,
                                        "out_g": out_g, "in_g":in_g }
             
+            # denom_dict[uniquegroup] = sum([edge_dict["{}->{}".format(uniquegroup,grp)] for grp in uniquegroups])
 
         for uniquegroup in uniquegroups:
         
             u_dict = self.avg_outdegree_to_grp_dict(uniquegroup)
             v_dict = self.avg_indegree_to_grp_dict(uniquegroup)
+            # u = np.mean(list(u_dict.values()))
+            # v = np.mean(list(v_dict.values()))
             print("u_dict: {}, v_dict: {}".format(u_dict,v_dict))
             un_norm_NL = 0
             for k, _ in u_dict.items():
-                q_out_gbar, q_in_gbar = u_dict.get(k,0), v_dict.get(k,0)
-                term1 = q_in_gbar * same_dict[uniquegroup]["out_i"]
-                term2 = q_out_gbar * same_dict[uniquegroup]["in_i"]
-                un_norm_NL += (term1+term2)
+                u, v = u_dict.get(k,0), v_dict.get(k,0)
+                un_norm_NL += (u*v)
             
             if len(u_dict):
                 un_norm_NL = un_norm_NL/len(u_dict)
          
-
+            
 
             # same_dict_grp = {k:v for k,v in same_dict.items() if k != uniquegroup}
             len_ = len(same_dict)
@@ -244,7 +247,11 @@ class InDegreeVaryBetaWalker(Walker):
             group2alpha[uniquegroup]["nonlocal"] =  un_norm_NL/sum_
             print("Normalised prs: ", group2alpha[uniquegroup])
 
-
+        # unnormalized_prs = {k:v for k,v in group2alpha.items()}
+        # print("unnormalized prs: ",unnormalized_prs)
+        # sum_ = sum(unnormalized_prs.values())
+        # group2alpha = {k:v/sum_ for k,v in unnormalized_prs.items()}
+        # group2alpha = unnormalized_prs
         print("Group2Alpha: ", group2alpha)
         for i in self.graph.nodes():
             self.walk_alpha_pr[i] = group2alpha[self.node_attrs[i]]
@@ -285,20 +292,7 @@ class InDegreeVaryBetaWalker(Walker):
         non_local_nodes = np.random.choice(all_nodes, size=sample_size, p=prs, replace=False)
 
         return non_local_nodes
-     
-    def _precompute_fmdict(self):
-        fm_dict = dict()
-        for i in self.graph.nodes():
-            fm_dict[i] = {group:0 for group in self.groups}
-            successors = list(self.graph.successors(i))
-            if len(successors) != 0:
-                for group in self.groups:
-                    group_succs = len([_ for _ in successors if self.node_attrs[_] == group])
-                    fm_dict[i][group] = group_succs/len(successors)
-        self.fm_dict = fm_dict
- 
-            
-        
+
     def _precompute_probabilities(self):
         for i in self.graph.nodes():
             local_neighbors = list(self.graph.successors(i))
@@ -306,7 +300,7 @@ class InDegreeVaryBetaWalker(Walker):
 
             unnormalized_prs_local = self.degree_pow_df.loc[local_neighbors, "degree_pow"]
             unnormalized_prs_nonlocal = self.degree_pow_df.loc[non_local_neighbors, "degree_pow"]
-
+                        
             if len(local_neighbors) != 0:
                 _sum = 0.0
                 for degree, ngh in zip(unnormalized_prs_local,local_neighbors):
@@ -339,10 +333,10 @@ class InDegreeVaryBetaWalker(Walker):
         """
 
         flatten = lambda l: [item for sublist in l for item in sublist]
-
+       
         # Split num_walks for each worker
         num_walks_lists = np.array_split(range(self.num_walks), self.workers)
- 
+        
         parallel_generate_walks = self.local_generate_walk
 
         walk_results = Parallel(n_jobs=self.workers)(
@@ -358,7 +352,7 @@ class InDegreeVaryBetaWalker(Walker):
         pbar = tqdm(total=num_walks, desc='Generating walks (CPU: {})'.format(cpu_num))
         possible_walks = ["local", "nonlocal"]
         # walks_pr = [1-alpha, alpha] # pr of selecting high degree nodes, low degree nodes
-
+        
         for n_walk in range(num_walks):
             # random_group = np.random.choice(possible_walks, p=walks_pr, size=1)[0]
             pbar.update(1)

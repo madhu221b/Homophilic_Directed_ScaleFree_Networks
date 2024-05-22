@@ -13,8 +13,8 @@ from org.gesis.lib.io import create_subfolders
 from org.gesis.lib.graph import get_node_metadata_as_dataframe
 from org.gesis.lib.io import save_csv
 from org.gesis.lib.graph import get_circle_of_trust_per_node
-from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model_walker, recommender_model, get_top_recos
-from org.gesis.lib.model_utils import get_train_test_graph, get_model_metrics
+from org.gesis.lib.n2v_utils import set_seed, rewiring_list, recommender_model_walker, recommender_model, get_top_recos, read_graph
+from org.gesis.lib.model_utils import get_train_test_graph, get_model_metrics, get_model_metrics_v2, plot_degree_dist, get_avg_inout_degree
 from joblib import delayed
 from joblib import Parallel
 from collections import Counter
@@ -39,6 +39,9 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
         if "fw" in model:
             p, q = extra_params["p"], extra_params["q"]
             _, embeds = recommender_model(g,t,path,model="fw",p=p,q=q)
+        elif "n2v" in model:
+            p, q = extra_params["p"], extra_params["q"]
+            _, embeds = recommender_model(g,t,path,model="n2v",p=p,q=q)
         else:
             _, embeds = recommender_model_walker(g,t,path,model=model,extra_params=extra_params)
         print("Getting Link Recommendations from {} Model".format(model))
@@ -55,7 +58,7 @@ def make_one_timestep(g, seed,t=0,path="",model="",extra_params=dict()):
                g.add_edge(u,v)
             seed += 1
         print("No of new edges added: ", new_edges)
-        return g
+        return g, embeds
 
 
 def run(name,model,main_seed,extra_params):
@@ -72,10 +75,18 @@ def run(name,model,main_seed,extra_params):
     
     # Initial Graph is read
     g = load_dataset(name)
-    
+
     # Sample testing edges & create training instance g object
     print("Total edges in the graph: ", g.number_of_edges())
+    ind, outd = get_avg_inout_degree(g)
+    try:
+        asp = nx.average_shortest_path_length(g)
+    except Exception as e:
+        print(e)
+        asp = 0
+
     g_train, test_edges, true_labels = get_train_test_graph(g.copy(), main_seed)
+
     g = g_train 
     print("Total edges after sampling: ", g.number_of_edges())
     iterable = tqdm(range(EPOCHS), desc='Timesteps', leave=True) 
@@ -86,9 +97,10 @@ def run(name,model,main_seed,extra_params):
         if not is_file:
             print("File does not exist for time {}, creating now".format(time))
             seed = main_seed+time+1 
-            g_updated = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
+            g_updated, embeds = make_one_timestep(g.copy(),seed,time,new_path,model,extra_params)
+           
             g = g_updated
-            save_modeldata(g, test_edges, true_labels,name, model,main_seed,t=time)
+            save_modeldata(embeds, test_edges, true_labels,name, model,main_seed,t=time)
             save_metadata(g,name, model,main_seed,t=time)
         else:
             print("File exists for time {}, loading it... ".format(time))
@@ -135,13 +147,15 @@ def save_metadata(g, name, model,seed,t=0):
     print("Saving graph and csv file at, ", fn.replace(".gpickle",""))
 
 
-def save_modeldata(g,test_edges, true_labels, name, model,seed,t=0):
+def save_modeldata(embeds,test_edges, true_labels, name, model,seed,t=0):
         dict_folder = "./utility/model_{}_name_{}/seed_{}".format(model,name,seed)
         if not os.path.exists(dict_folder): os.makedirs(dict_folder)
         dict_file_name = dict_folder+"/_name{}.pkl".format(name)
 
-        precision, recall = get_model_metrics(g,test_edges,true_labels)
-        print("Recall: {}, Precision: {} for name:{} for T={}".format(recall, precision,name,t))
+        # precision, recall = get_model_metrics(g,test_edges,true_labels)
+        auc_score, precision, recall = get_model_metrics_v2(embeds,test_edges,true_labels)
+        # print("Recall: {}, Precision: {} for hMM:{}, hmm:{} for T={}".format(recall, precision, hMM, hmm,t))
+        print("Auc score: {}, for T:{}".format(auc_score,t))
         if not os.path.exists(dict_file_name):
             result_dict = dict()
         else:
@@ -149,8 +163,8 @@ def save_modeldata(g,test_edges, true_labels, name, model,seed,t=0):
             with open(dict_file_name, 'rb') as f:                
                  result_dict = pkl.load(f)
         
-        result_dict[t] = {"precision":precision, "recall":recall}
-           
+        # result_dict[t] = {"precision":precision, "recall":recall}
+        result_dict[t] = {"auc_score":auc_score,"precision":precision, "recall":recall}  
         with open(dict_file_name, 'wb') as f:                
             pkl.dump(result_dict,f)
                
@@ -162,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--q", help="In-out parameter", type=float, default=1.0)
     parser.add_argument("--beta", help="Beta paramater", type=float, default=2.0)
     parser.add_argument("--alpha", help="Alpha paramater (Levy)", type=float, default=1.0)
-    parser.add_argument("--seed", help="Seed", type=float, default=42)
+    parser.add_argument("--seed", help="Seed", type=int, default=42)
    
     args = parser.parse_args()
     
@@ -175,9 +189,10 @@ if __name__ == "__main__":
        extra_params = {"alpha":args.alpha}
     elif args.model in ["levy", "highlowindegree"]:
          extra_params = {"alpha":args.alpha}
-    elif args.model == "fw":
+    elif args.model in ["fw","n2v"]:
         model = args.model + "_p_{}_q_{}".format(args.p,args.q)
-    elif args.model in  ["nonlocalindegree","nonlocaltrialindegree"]:
+        extra_params = {"p":args.p,"q":args.q}
+    elif args.model in  ["nonlocalindegree","nonlocaltrialindegree","nonlocalindegreelocalrandom","nllindegreelocalrandom","nlindlocalind"]:
         model = "{}_alpha_{}_beta_{}".format(args.model,args.alpha,args.beta)
         extra_params = {"alpha":args.alpha,"beta":args.beta}
     elif args.model == "fairindegreev2":

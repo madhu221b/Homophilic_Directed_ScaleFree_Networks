@@ -255,41 +255,6 @@ def _salsa_top1(node_index, cot, A, top=10):
     except Exception as e:
         return []
 
-# def run(hMM, hmm):
-#     folder_path = "../Homophilic_Directed_ScaleFree_Networks/{}".format(MODEL)
-    
-
-
-#     new_filename = get_filename(MODEL, N, fm, d, YM, Ym, hMM, hmm) +".gpickle"
-#     new_path = os.path.join(folder_path, new_filename) 
-#     print(new_path)
-#     if os.path.exists(new_path):
-#         print("File exists for configuration hMM:{}, hmm:{}".format(hMM,hmm))
-#         return 
-#     print("hMM: {}, hmm: {}".format(hMM, hmm))
-
-#     # read the base graph from DPAH folder
-#     old_filename = "DPAH-N" + new_filename.replace(".gpickle","").split("N")[-1] + "-ID0.gpickle"
-#     g = nx.read_gpickle(os.path.join(DPAH_path,old_filename))
-    
-
-#     for t in range(EPOCHS):
-#         print("Generating recommendations for epoch step:", t)
-#         nodes = g.nodes()
-#         A = nx.to_scipy_sparse_matrix(g,nodes)
-#         recos = get_top_recos(A) 
-#         for src_node, target_node in enumerate(recos):
-            
-#             # if no edge already exists
-#             if not g.has_edge(src_node, target_node):
-#                 # chose a random edge to be removed of src node
-#                 chosen_edge = random.choice(list(g.out_edges(src_node)))
-#                 g.remove_edge(*chosen_edge)
-#                 # add the new out edge
-#                 g.add_edge(src_node, target_node)
-#         # save all metadata on last epoch
-#         if t == EPOCHS-1:
-#             save_metadata(g, hMM, hmm, MODEL)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

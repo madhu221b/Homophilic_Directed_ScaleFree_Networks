@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=2
+#SBATCH --job-name=vis
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=00:10:00
+#SBATCH --output=slurm_output_%A.out
+
+
+module purge
+module load 2022
+module load Anaconda3/2022.05
+
+cd $HOME/Homophilic_Directed_ScaleFree_Networks
+source activate lr_env_v4
+# srun python3 generate_recos_fw.py --start 0.0 --end 0.5 --fm 0.4
+# srun python visualize_plots.py
+# srun python draw_embeddings.py --model fw --name facebook_locale
+# srun python draw_embeddings.py --model beepboopv3 --name facebook_locale
+# srun python draw_embeddings.py --model indegreevarybeta --name facebook_locale
+
+srun python draw_embeddings.py  --name rice --model indegreevarybetav2
+srun python draw_embeddings.py --name rice --model fw
+# srun python draw_embeddings.py --model fw --hMM 0.2 --hmm 0.8

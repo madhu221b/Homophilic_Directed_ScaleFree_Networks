@@ -163,7 +163,7 @@ if __name__ == "__main__":
        extra_params = {"alpha":args.alpha}
     elif args.model in ["levy", "highlowindegree"]:
          extra_params = {"alpha":args.alpha}
-    elif args.model == "nonlocalindegree":
+    elif args.model in  ["nonlocalindegree","nonlocaltrialindegree","nonlocalindegreelocalrandom","nlindlocalind"]:
         model = "{}_alpha_{}_beta_{}".format(args.model,args.alpha,args.beta)
         extra_params = {"alpha":args.alpha,"beta":args.beta}
     elif args.model == "fairindegreev2":

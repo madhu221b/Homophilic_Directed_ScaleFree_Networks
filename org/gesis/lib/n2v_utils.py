@@ -20,11 +20,19 @@ from walkers.commonnghaware import CommonNeighborWalker
 from walkers.levywalker import LevyWalker
 from walkers.fairindegreewalker import FairInDegreeWalker # this is indegree with rnd group choice 
 from walkers.indegreevarybetawalker import InDegreeVaryBetaWalker
+from walkers.indegreevarybetawalkerv2 import InDegreeVaryBetaWalkerV2
+from walkers.indegreevarybetawalkerv3 import InDegreeVaryBetaWalkerV3
 from walkers.ingroupdegreewalker import InGroupDegreeWalker
 from walkers.highlowindegreewalker import HighLowInDegreeWalker
 from walkers.nonlocalindegreewalker import NonLocalInDegreeWalker
-from walkers.nonlocalindegreetrialwalker import NonLocalInDegreeTrialWalker
 from walkers.nonlocaladaptivealpaindegreewalker import NonLocalAdaptiveInDegreeWalker
+from walkers.nonlocalindegreelocalrandomwalker import NonLocalInDegreeLocalRandomWalker
+from walkers.nllindegreelocalrandomwalker import NllInDegreeLocalRandomWalker
+from walkers.nonlocalindlocalindwalker import NonLocalInDegreeLocalInDegreeWalker
+from walkers.nonlocaladaptiveindegree_localrandomwalker import NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoop
+from walkers.beepboopv2_walker import NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV2
+from walkers.beepboopv3_walker import NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV3
+from walkers.beepboopv4_walker import NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV4
 from fairdegreewalk.fairdegreewalk import FairDegreeWalk # this is incorporating indegree in fairwalk
 
 # Hyperparameter for node2vec/fairwalk
@@ -37,13 +45,22 @@ walker_dict = {
   "indegree": InDegreeWalker,
   "fairindegree": FairInDegreeWalker, 
   "indegreevarybeta" : InDegreeVaryBetaWalker,
+  "indegreevarybetav2" : InDegreeVaryBetaWalkerV2,
+   "indegreevarybetav3" : InDegreeVaryBetaWalkerV3,
   "ingroupdegree" : InGroupDegreeWalker,
   "commonngh": CommonNeighborWalker,
   "levy": LevyWalker,
   "highlowindegree": HighLowInDegreeWalker,
   "nonlocalindegree": NonLocalInDegreeWalker,
-  "nonlocaltrialindegree": NonLocalInDegreeTrialWalker,
+#   "nonlocaltrialindegree": NonLocalInDegreeTrialWalker,
   "nonlocaladaptivealpha": NonLocalAdaptiveInDegreeWalker,
+  "nonlocalindegreelocalrandom": NonLocalInDegreeLocalRandomWalker,
+#   "nllindegreelocalrandom": NllInDegreeLocalRandomWalker, # Non Local was adaptive
+  "nlindlocalind": NonLocalInDegreeLocalInDegreeWalker,
+  "beepboop": NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoop,
+  "beepboopv2": NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV2,
+  "beepboopv3": NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV3,
+  "beepboopv4": NonLocalAdaptiveInDegreeLocalRandomWalkerBeepBoopV4,
   "fairindegreev2": FairDegreeWalk
 
 }
@@ -99,7 +116,6 @@ def recommender_model(G,t=0,path="",model="n2v",p=1,q=1,num_cores=8, is_walk_viz
        model = node2vec.fit() 
        emb_df = (pd.DataFrame([model.wv.get_vector(str(n)) for n in G.nodes()], index = G.nodes))
     elif model == "fw":
-        print("[FW] Using p value: {}, Using q value : {}".format(p,q))
         fw_model = FairWalk(G, dimensions=DIM, walk_length=WALK_LEN, num_walks=NUM_WALKS, workers=num_cores,p=p,q=q)
         if is_walk_viz:
             dict_path = path.replace(".gpickle","") + "_frac.pkl"
@@ -200,9 +216,21 @@ def get_walk_plots(walks, g, t,dict_path):
     except Exception as error:
         print("Error in get walk plots: ", error)
 
-def get_avg_group_centrality(g,group=1):
+def get_diff_group_centrality(g,centrality_dict,group):
     
-    centrality_dict = nx.betweenness_centrality(g, normalized=True)
+
+    node_attrs = nx.get_node_attributes(g,"group")
+
+    centrality_1 = [val for node, val in centrality_dict.items() if node_attrs[node] == group]
+    avg_val_1 = np.mean(centrality_1)
+
+    centrality_2 = [val for node, val in centrality_dict.items() if node_attrs[node] != group]
+    avg_val_2 = np.mean(centrality_2)
+    return avg_val_1 - avg_val_2
+ 
+def get_avg_group_centrality(g,centrality_dict,group=1):
+    
+
     node_attrs = nx.get_node_attributes(g,"group")
 
     centrality = [val for node, val in centrality_dict.items() if node_attrs[node] == group]
@@ -240,3 +268,19 @@ def get_centrality_dict(model,g,hMM,hmm,centrality="betweenness"):
             with open(dict_file_name, 'rb') as f:                
                 centrality_dict = pkl.load(f)
     return centrality_dict
+
+def avg_centrality(g,group,deg_type="in"):
+    node_attrs = nx.get_node_attributes(g,"group")
+    subset_nodes = [node for node, _ in node_attrs.items() if _ == group]
+    print(len(subset_nodes))
+    same_, diff_ = 0, 0
+    for node in subset_nodes:
+        if deg_type == "in":
+            nghs = list(g.predecessors(node))
+        elif deg_type == "out":
+            nghs = list(g.successors(node))
+        
+        same_ += len([_ for _ in nghs if node_attrs[_] == group])
+        diff_ += len([_ for _ in nghs if node_attrs[_] != group])
+
+    return same_/len(subset_nodes), diff_/len(subset_nodes)
